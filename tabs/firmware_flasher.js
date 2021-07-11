@@ -388,6 +388,26 @@ TABS.firmware_flasher.initialize = function (callback) {
             }
         });
 
+        $('a.flash_firmware2').click(function () { //Buzz2
+
+
+        var port = "/dev/ttyACM0";
+
+        var up = new uploader(port,
+            115200,//args.baud_bootloader,
+            57600,//baud_flightstack,
+            115200,//args.baud_bootloader_flash,
+            1,//args.target_system,
+            1,//args.target_component,
+            255,//args.source_system,
+            0,//args.source_component
+            );
+
+
+
+        });
+        
+
         $('a.flash_firmware').click(function () {
             if (!$(this).hasClass('disabled')) {
                 if (!GUI.connect_lock) { // button disabled while flashing is in progress

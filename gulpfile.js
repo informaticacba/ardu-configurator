@@ -77,6 +77,8 @@ sources.Js = [
     './js/libraries/jbox/jBox.min.js',
     './js/libraries/switchery/switchery.js',
     './js/libraries/jquery.ba-throttle-debounce.js',
+    './js/libraries/pako.js',
+    './js/uploader.js',
     './js/helpers.js',
     './node_modules/inflection/inflection.min.js',
     './node_modules/bluebird/js/browser/bluebird.min.js',
