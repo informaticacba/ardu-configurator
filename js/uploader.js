@@ -193,8 +193,8 @@ class uploader{
         this.NSH_REBOOT      = "reboot\n";
 
         //----------------
-        self.MAVLINK_REBOOT_ID1 = new ArrayBuffer([0xfe,0x21,0x72,0xff,0x00,0x4c,0x00,0x00,0x40,0x40,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xf6,0x00,0x01,0x00,0x00,0x53,0x6b]);
-        self.MAVLINK_REBOOT_ID0 = new ArrayBuffer([0xfe,0x21,0x45,0xff,0x00,0x4c,0x00,0x00,0x40,0x40,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xf6,0x00,0x00,0x00,0x00,0xcc,0x37]);
+        this.MAVLINK_REBOOT_ID1 = new ArrayBuffer([0xfe,0x21,0x72,0xff,0x00,0x4c,0x00,0x00,0x40,0x40,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xf6,0x00,0x01,0x00,0x00,0x53,0x6b]);
+        this.MAVLINK_REBOOT_ID0 = new ArrayBuffer([0xfe,0x21,0x45,0xff,0x00,0x4c,0x00,0x00,0x40,0x40,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xf6,0x00,0x00,0x00,0x00,0xcc,0x37]);
         
         if (target_component == None){
             target_component = 1}
@@ -206,22 +206,29 @@ class uploader{
         // open the port, keep the default timeout short so we can poll quickly
 
         //--------------------------------------------------------------
-        //self.port = serial.Serial(portname, baudrate_bootloader, timeout=2.0)
-        //self.port =  new SerialPort(portname, 9600);
-        self.port = portname;
-        self.baud = baudrate_bootloader;
+        //this.port = serial.Serial(portname, baudrate_bootloader, timeout=2.0)
+        //this.port =  new SerialPort(portname, 9600);
+        this.port = portname;
+        this.baud = baudrate_bootloader;
 
-        self.receive_buffer = [];
+        this.receive_buffer = [];
         this.upload_process_alive = true; // buzz todo, this should default to false,
 
         this.up = false;
 
+        this.xxdata = '';
+
+        this.serial_id = -1;
+
 
         // buffffersize 1 forces the serial.onReceive listener to trigger on every BYTE
-        serial.connect(self.port, {bitrate: self.baud, parityBit: 'even', stopBits: 'one' ,bufferSize:1}, function (openInfo) {
+        serial.connect(this.port, {bitrate: this.baud, parityBit: 'even', stopBits: 'one' ,bufferSize:1}, function (openInfo) {
             if (openInfo) {
                 // we are connected, disabling connect button in the UI
                 //GUI.connect_lock = true;
+                // NO THIS hERE
+
+                self.serial_id = openInfo.connectionId;
 
                 console.log('Succeeded to open serial port');
                 self.initialize();
@@ -234,31 +241,33 @@ class uploader{
 
         // no input parameters
         // this method should be executed every 1 ms via interval timer
-        self.read = function (readInfo) {
+        this.read = function (readInfo) {
 
-            console.log('READING serial port!!!!!');
-            // routine that fills the buffer
-            var data = new Uint8Array(readInfo.data);
+            // console.log('READING serial port!!!!!');
+            // // routine that fills the buffer
+            // var data = new Uint8Array(readInfo.data);
 
-            for (var i = 0; i < data.length; i++) {
-                this.receive_buffer.push(data[i]);
-            }
+            this.xxdata = new Uint8Array(readInfo.data);
 
-            // routine that fetches data from buffer if statement is true
-            if (this.receive_buffer.length >= this.bytes_to_read && this.bytes_to_read != 0) {
-                var data = this.receive_buffer.slice(0, this.bytes_to_read); // bytes requested
-                this.receive_buffer.splice(0, this.bytes_to_read); // remove read bytes
+            // for (var i = 0; i < data.length; i++) {
+            //     this.receive_buffer.push(data[i]);
+            // }
 
-                this.bytes_to_read = 0; // reset trigger
+            // // routine that fetches data from buffer if statement is true
+            // if (this.receive_buffer.length >= this.bytes_to_read && this.bytes_to_read != 0) {
+            //     var data = this.receive_buffer.slice(0, this.bytes_to_read); // bytes requested
+            //     this.receive_buffer.splice(0, this.bytes_to_read); // remove read bytes
 
-                //this.read_callback(data);
-            }
+            //     this.bytes_to_read = 0; // reset trigger
+
+            //     //this.read_callback(data);
+            // }
         };
 
         // Array = array of bytes that will be send over serial
         // bytes_to_read = received bytes necessary to trigger read_callback
         // callback = function that will be executed after received bytes = bytes_to_read
-        self.send = function (Array, bytes_to_read, callback) {
+        this.send = function (Array, bytes_to_read, callback) {
             // flip flag
             this.upload_process_alive = true;
 
@@ -279,9 +288,9 @@ class uploader{
             serial.send(bufferOut, function (writeInfo) {});
         };
 
-        self.initialize = function () {
+        this.initialize = function () {
 
-            var self = this;
+            //var this = this;
 
             serial.onReceive.addListener(function (info) {
                 self.read(info);
@@ -289,13 +298,13 @@ class uploader{
 
             // this triggers aFTER full flash....?
             // helper.interval.add('ARDU_timeout', function () {
-            //     if (self.upload_process_alive) { // process is running
-            //         self.upload_process_alive = false;
+            //     if (this.upload_process_alive) { // process is running
+            //         this.upload_process_alive = false;
             //     } else {
             //         console.log('ARDU - timed out, programming failed ...');
         
             //         $('span.progressLabel').text('ARDU - timed out, programming: FAILED');
-            //         //self.progress_bar_e.addClass('invalid');
+            //         //this.progress_bar_e.addClass('invalid');
         
             //         googleAnalytics.sendEvent('Flashing', 'Programming', 'timeout');
         
@@ -303,28 +312,28 @@ class uploader{
             //         helper.interval.remove('ARDU_timeout');
         
             //         // exit
-            //         self.upload_procedure(99);
+            //         this.upload_procedure(99);
             //     }
             // }, 20000);
 
-            self.after_init();
+            this.after_init();
 
-            //self.upload_procedure(1);
-            self.find_bootloader(); // call into the ported-from-python code
+            //this.upload_procedure(1);
+            this.find_bootloader(); // call into the ported-from-python code
 
 
         };
 
-        self.after_init = function () {
+        this.after_init = function () {
 
-            self.baudrate_bootloader = baudrate_bootloader
+            this.baudrate_bootloader = baudrate_bootloader
             if (baudrate_bootloader_flash != None){
-                self.baudrate_bootloader_flash = baudrate_bootloader_flash
+                this.baudrate_bootloader_flash = baudrate_bootloader_flash
             }else{
-                self.baudrate_bootloader_flash = self.baudrate_bootloader
+                this.baudrate_bootloader_flash = this.baudrate_bootloader
             }
-            self.baudrate_flightstack = baudrate_flightstack
-            self.baudrate_flightstack_idx = -1
+            this.baudrate_flightstack = baudrate_flightstack
+            this.baudrate_flightstack_idx = -1
             // generate mavlink reboot message:
             if (target_system != None){
 
@@ -335,14 +344,14 @@ class uploader{
 
 
             // attempt to get back into sync with the bootloader
-        self.__sync = function(){
+        this.__sync = function(){
             // send a stream of ignored bytes longer than the longest possible conversation
             // that we might still have in progress
-            // self.__send(this.NOP * (this.PROG_MULTI_MAX + 2))
-            //self.port.flushInput() // buzz todo impl flush here 
+            // this.__send(this.NOP * (this.PROG_MULTI_MAX + 2))
+            //this.port.flushInput() // buzz todo impl flush here 
             var z = [this.GET_SYNC , this.EOC];
-            self.__send(z)
-            self.__getSync()
+            this.__send(z)
+            this.__getSync()
         }
 
     }
@@ -389,45 +398,57 @@ class uploader{
     // char string
     __send( c){
         //this.port.write(c)
-        console.log("data:",c);
-        //
-        var bufferOut = new ArrayBuffer(c.length);
-        var bufferView = new Uint8Array(bufferOut);
+        // console.log("data out:",c,typeof(c));
+        // //
+        // var bufferOut = new ArrayBuffer(c.length+1);
+        // var bufferView = new Uint8Array(bufferOut);
 
-        // set Array values inside bufferView (alternative to for loop)
-        bufferView.set(c);
-        serial.send(bufferOut, function (writeInfo) {});
+        // if (typeof(c) == "number" ) {
+        //     c = new Uint8Array([c]);
+            
+        // }
+
+        // // set Array values inside bufferView (alternative to for loop)
+        // bufferView.set(c,0);
+       // serial.send(c, function (writeInfo) {});
+    }
+
+    len(c) {
+        if ( c == undefined) return 0; 
+        return c.length;
     }
 
     __recv( count=1){
         //c = this.port.read(count)
-        c = 
-        if( len(c) < 1){
-            throw RuntimeError("timeout waiting for data (%u bytes)" % count)
+        var c = this.xxdata;
+        this.xxdata = ''; 
+        if( this.len(c) < 1){
+           // throw new Error("timeout waiting for data ("+count+" bytes)" )
         }
         // print("recv " + binascii.hexlify(c))
         return c
     }
 
     __recv_int(){
-        raw = this.__recv(4)
-        val = struct.unpack("<I", raw) 
+        var raw = this.__recv(4)
+        var val = jspack.Unpack("<I", raw);//struct.unpack("<I", raw)  
+        if ( val == undefined) return;
         return val[0]
     }
 
     __getSync(){
         //this.port.flush() todo impl flush
-        c = bytes(this.__recv())
+        var c = this.__recv();//bytes(this.__recv())
         
-        if (c != this.INSYNC)
-            throw RuntimeError("unexpected %s instead of INSYNC" % c);
-        c = this.__recv()
-        if (c == this.INVALID)
-            throw RuntimeError("bootloader reports INVALID OPERATION");
-        if (c == this.FAILED)
-            throw RuntimeError("bootloader reports OPERATION FAILED");
-        if (c != this.OK)
-            throw RuntimeError("unexpected response 0x%x instead of OK" % ord(c));
+        // if (c != this.INSYNC)
+        //     throw new Error("unexpected "+c+" instead of INSYNC") ;
+        // c = this.__recv()
+        // if (c == this.INVALID)
+        //     throw new Error("bootloader reports INVALID OPERATION");
+        // if (c == this.FAILED)
+        //     throw new Error("bootloader reports OPERATION FAILED");
+        // if (c != this.OK)
+        //     throw new Error("unexpected response 0x"+ord(c)+" instead of OK" );
     }
 
 
@@ -450,16 +471,16 @@ class uploader{
             return True
 
         }catch (NotImplementedError){
-            throw RuntimeError("Programing not supported for this version of silicon!\nSee https://pixhawk.org/help/errata")
+            throw new Error("Programing not supported for this version of silicon!\nSee https://pixhawk.org/help/errata")
         }
-     //   catch (RuntimeError)
+     //   catch (new Error)
             // timeout, no response yet
         return False
     }
     // send the GET_DEVICE command and wait for an info parameter
     __getInfo( param){
         this.__send(this.GET_DEVICE + param + this.EOC)
-        value = this.__recv_int()
+        var value = this.__recv_int()
         this.__getSync()
         return value
     }
@@ -468,7 +489,7 @@ class uploader{
     __getOTP( param){
         t = struct.pack("I", param)  // int param as 32bit ( 4 byte ) char array.
         this.__send(this.GET_OTP + t + this.EOC)
-        value = this.__recv(4)
+        var value = this.__recv(4)
         this.__getSync()
         return value
     }
@@ -476,14 +497,14 @@ class uploader{
     __getSN( param){
         t = struct.pack("I", param)  // int param as 32bit ( 4 byte ) char array.
         this.__send(this.GET_SN + t + this.EOC)
-        value = this.__recv(4)
+        var value = this.__recv(4)
         this.__getSync()
         return value
     }
     // send the GET_CHIP command
     __getCHIP(){
         this.__send(this.GET_CHIP + this.EOC)
-        value = this.__recv_int()
+        var value = this.__recv_int()
         this.__getSync()
         return value
     }
@@ -491,7 +512,7 @@ class uploader{
     __getCHIPDes(){
         this.__send(this.GET_CHIP_DES + this.EOC)
         length = this.__recv_int()
-        value = this.__recv(length)
+        var value = this.__recv(length)
         this.__getSync()
         if (runningPython3)
             value = value.decode('ascii')
@@ -503,7 +524,7 @@ class uploader{
         if (maxVal < progress)
             progress = maxVal
 
-        percent = (float(progress) / float(maxVal)) * 100.0
+        var percent = (float(progress) / float(maxVal)) * 100.0
 
         sys.stdout.write("\r%s: [%-20s] %.1f%%" % (label, '='*int(percent/5.0), percent))
         sys.stdout.flush()
@@ -533,7 +554,7 @@ class uploader{
                 return
             }
         }
-        throw RuntimeError("timed out waiting for erase")
+        throw new Error("timed out waiting for erase")
     }
     // send a PROG_MULTI command to write a collection of bytes
     __program_multi( data){
@@ -665,7 +686,7 @@ class uploader{
             if (verifyProgress % 256 == 0)
                 this.__drawProgressBar(label, verifyProgress, len(groups))
             if (! this.__verify_multi(bytes))
-                throw RuntimeError("Verification failed")
+                throw new Error("Verification failed")
         }
         this.__drawProgressBar(label, 100, 100)
     }
@@ -680,7 +701,7 @@ class uploader{
         if (report_crc != expect_crc){
             print("Expected 0x%x" % expect_crc)
             print("Got      0x%x" % report_crc)
-            throw RuntimeError("Program CRC failed")
+            throw new Error("Program CRC failed")
         
         }this.__drawProgressBar(label, 100, 100)
     }
@@ -707,7 +728,7 @@ class uploader{
         this.bl_rev = this.__getInfo(this.INFO_BL_REV)
         if ((this.bl_rev < this.BL_REV_MIN) || (this.bl_rev > this.BL_REV_MAX)){
             print("Unsupported bootloader protocol %d" % this.bl_rev)
-            throw RuntimeError("Bootloader protocol mismatch")
+            throw new Error("Bootloader protocol mismatch")
         }
         this.board_type = this.__getInfo(this.INFO_BOARD_ID)
         this.board_rev = this.__getInfo(this.INFO_BOARD_REV)
@@ -916,7 +937,7 @@ class uploader{
         this.dump_board_info()
 
         if (this.fw_maxsize < fw.property('image_size'))
-            throw RuntimeError("Firmware image is too large for this board")
+            throw new Error("Firmware image is too large for this board")
 
         if (this.baudrate_bootloader_flash != this.baudrate_bootloader){
             print("Setting baudrate to %u" % this.baudrate_bootloader_flash)
