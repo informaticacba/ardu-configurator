@@ -31,8 +31,24 @@ const pako = require('pako');
 // uploader.py from ardupilot/Tools/scripts/uploader.py
 //
 
+// sone python-isms hand
 var None = undefined;
+var True = true;
 
+
+// python has seconds-since-epoch as a float, js has something a bit diff
+var time = {}
+time.time = function ( ){
+
+    var milliseconds_since_1_January_1970 =  (new Date()).getTime();
+
+    return milliseconds_since_1_January_1970/1000.0; // conver millisecs -> secs, leave it as a float
+
+}
+time.sleep = async function ( secs ){ // whole or partial secs
+
+    return new Promise(resolve => setTimeout(resolve, secs*1000.0));
+}
 
 // CRC equivalent to crc_crc32() in AP_Math/crc.cpp
 crctab = new ArrayBuffer( [
@@ -126,55 +142,60 @@ class firmware {
 
 class uploader{
 
-    //# protocol bytes
-    INSYNC          = 0x12
-    EOC             = 0x20
-
-    //# reply bytes
-    OK              = 0x10
-    FAILED          = 0x11
-    INVALID         = 0x13     //# rev3+
-    BAD_SILICON_REV = 0x14     //# rev5+
-
-    //# command bytes
-    NOP             = 0x00     //# guaranteed to be discarded by the bootloader
-    GET_SYNC        = 0x21
-    GET_DEVICE      = 0x22
-    CHIP_ERASE      = 0x23
-    CHIP_VERIFY     = 0x24     //# rev2 only
-    PROG_MULTI      = 0x27
-    READ_MULTI      = 0x28     //# rev2 only
-    GET_CRC         = 0x29     //# rev3+
-    GET_OTP         = 0x2a     //# rev4+  , get a word from OTP area
-    GET_SN          = 0x2b     //# rev4+  , get a word from SN area
-    GET_CHIP        = 0x2c     //# rev5+  , get chip version
-    SET_BOOT_DELAY  = 0x2d     //# rev5+  , set boot delay
-    GET_CHIP_DES    = 0x2e     //# rev5+  , get chip description in ASCII
-    MAX_DES_LENGTH  = 20
-
-    REBOOT          = 0x30
-    SET_BAUD        = 0x33     //# set baud
-
-    INFO_BL_REV     = 0x01        //# bootloader protocol revision
-    BL_REV_MIN      = 2              //# minimum supported bootloader protocol
-    BL_REV_MAX      = 5              //# maximum supported bootloader protocol
-    INFO_BOARD_ID   = 0x02        //# board type
-    INFO_BOARD_REV  = 0x03        //# board revision
-    INFO_FLASH_SIZE = 0x04        //# max firmware size in bytes
-
-    PROG_MULTI_MAX  = 252            //# protocol max is 255, must be multiple of 4
-    READ_MULTI_MAX  = 252            //# protocol max is 255
-
-    NSH_INIT        = new ArrayBuffer([0x0d,0x0d,0x0d]);
-    NSH_REBOOT_BL   = "reboot -b\n"
-    NSH_REBOOT      = "reboot\n"
 
     //-------------
     constructor( portname, baudrate_bootloader, baudrate_flightstack, baudrate_bootloader_flash=None, target_system=None, target_component=None, source_system=None, source_component=None){
         var self = this;
+
+        //----------------
+
+        //# protocol bytes
+        this.INSYNC          = 0x12;
+        this.EOC             = 0x20;
+
+        //# reply bytes
+        this.OK              = 0x10;
+        this.FAILED          = 0x11;
+        this.INVALID         = 0x13;     //# rev3+
+        this.BAD_SILICON_REV = 0x14;     //# rev5+
+
+        //# command bytes
+        this.NOP             = 0x00;     //# guaranteed to be discarded by the bootloader
+        this.GET_SYNC        = 0x21;
+        this.GET_DEVICE      = 0x22;
+        this.CHIP_ERASE      = 0x23;
+        this.CHIP_VERIFY     = 0x24 ;    //# rev2 only
+        this.PROG_MULTI      = 0x27;
+        this.READ_MULTI      = 0x28 ;    //# rev2 only
+        this.GET_CRC         = 0x29  ;   //# rev3+
+        this.GET_OTP         = 0x2a   ;  //# rev4+  , get a word from OTP area
+        this.GET_SN          = 0x2b    ; //# rev4+  , get a word from SN area
+        this.GET_CHIP        = 0x2c    ; //# rev5+  , get chip version
+        this.SET_BOOT_DELAY  = 0x2d    ; //# rev5+  , set boot delay
+        this.GET_CHIP_DES    = 0x2e    ; //# rev5+  , get chip description in ASCII
+        this.MAX_DES_LENGTH  = 20;
+
+        this.REBOOT          = 0x30;
+        this.SET_BAUD        = 0x33 ;    //# set baud
+
+        this.INFO_BL_REV     = 0x01 ;       //# bootloader protocol revision
+        this.BL_REV_MIN      = 2 ;             //# minimum supported bootloader protocol
+        this.BL_REV_MAX      = 5 ;             //# maximum supported bootloader protocol
+        this.INFO_BOARD_ID   = 0x02;        //# board type
+        this.INFO_BOARD_REV  = 0x03;        //# board revision
+        this.INFO_FLASH_SIZE = 0x04;        //# max firmware size in bytes
+
+        this.PROG_MULTI_MAX  = 252;            //# protocol max is 255, must be multiple of 4
+        this.READ_MULTI_MAX  = 252;            //# protocol max is 255
+
+        this.NSH_INIT        = new ArrayBuffer([0x0d,0x0d,0x0d]);
+        this.NSH_REBOOT_BL   = "reboot -b\n";
+        this.NSH_REBOOT      = "reboot\n";
+
+        //----------------
         self.MAVLINK_REBOOT_ID1 = new ArrayBuffer([0xfe,0x21,0x72,0xff,0x00,0x4c,0x00,0x00,0x40,0x40,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xf6,0x00,0x01,0x00,0x00,0x53,0x6b]);
         self.MAVLINK_REBOOT_ID0 = new ArrayBuffer([0xfe,0x21,0x45,0xff,0x00,0x4c,0x00,0x00,0x40,0x40,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xf6,0x00,0x00,0x00,0x00,0xcc,0x37]);
-        var self = this;
+        
         if (target_component == None){
             target_component = 1}
         if (source_system == None){
@@ -184,63 +205,177 @@ class uploader{
 
         // open the port, keep the default timeout short so we can poll quickly
 
+        //--------------------------------------------------------------
         //self.port = serial.Serial(portname, baudrate_bootloader, timeout=2.0)
-        self.port =  new SerialPort(portname, 9600);
+        //self.port =  new SerialPort(portname, 9600);
+        self.port = portname;
+        self.baud = baudrate_bootloader;
 
-        self.baudrate_bootloader = baudrate_bootloader
-        if (baudrate_bootloader_flash != None){
-            self.baudrate_bootloader_flash = baudrate_bootloader_flash
-        }else{
-            self.baudrate_bootloader_flash = self.baudrate_bootloader
+        self.receive_buffer = [];
+        this.upload_process_alive = true; // buzz todo, this should default to false,
+
+        this.up = false;
+
+
+        // buffffersize 1 forces the serial.onReceive listener to trigger on every BYTE
+        serial.connect(self.port, {bitrate: self.baud, parityBit: 'even', stopBits: 'one' ,bufferSize:1}, function (openInfo) {
+            if (openInfo) {
+                // we are connected, disabling connect button in the UI
+                //GUI.connect_lock = true;
+
+                console.log('Succeeded to open serial port');
+                self.initialize();
+
+            } else {
+                console.log('Failed to open serial port');
+            }
+        });
+
+
+        // no input parameters
+        // this method should be executed every 1 ms via interval timer
+        self.read = function (readInfo) {
+
+            console.log('READING serial port!!!!!');
+            // routine that fills the buffer
+            var data = new Uint8Array(readInfo.data);
+
+            for (var i = 0; i < data.length; i++) {
+                this.receive_buffer.push(data[i]);
+            }
+
+            // routine that fetches data from buffer if statement is true
+            if (this.receive_buffer.length >= this.bytes_to_read && this.bytes_to_read != 0) {
+                var data = this.receive_buffer.slice(0, this.bytes_to_read); // bytes requested
+                this.receive_buffer.splice(0, this.bytes_to_read); // remove read bytes
+
+                this.bytes_to_read = 0; // reset trigger
+
+                //this.read_callback(data);
+            }
+        };
+
+        // Array = array of bytes that will be send over serial
+        // bytes_to_read = received bytes necessary to trigger read_callback
+        // callback = function that will be executed after received bytes = bytes_to_read
+        self.send = function (Array, bytes_to_read, callback) {
+            // flip flag
+            this.upload_process_alive = true;
+
+            var bufferOut = new ArrayBuffer(Array.length);
+            var bufferView = new Uint8Array(bufferOut);
+
+            // set Array values inside bufferView (alternative to for loop)
+            bufferView.set(Array);
+
+            // update references
+            this.bytes_to_read = bytes_to_read;
+            this.read_callback = callback;
+
+            // empty receive buffer before next command is out
+            this.receive_buffer = [];
+
+            // send over the actual data
+            serial.send(bufferOut, function (writeInfo) {});
+        };
+
+        self.initialize = function () {
+
+            var self = this;
+
+            serial.onReceive.addListener(function (info) {
+                self.read(info);
+            });
+
+            // this triggers aFTER full flash....?
+            // helper.interval.add('ARDU_timeout', function () {
+            //     if (self.upload_process_alive) { // process is running
+            //         self.upload_process_alive = false;
+            //     } else {
+            //         console.log('ARDU - timed out, programming failed ...');
+        
+            //         $('span.progressLabel').text('ARDU - timed out, programming: FAILED');
+            //         //self.progress_bar_e.addClass('invalid');
+        
+            //         googleAnalytics.sendEvent('Flashing', 'Programming', 'timeout');
+        
+            //         // protocol got stuck, clear timer and disconnect
+            //         helper.interval.remove('ARDU_timeout');
+        
+            //         // exit
+            //         self.upload_procedure(99);
+            //     }
+            // }, 20000);
+
+            self.after_init();
+
+            //self.upload_procedure(1);
+            self.find_bootloader(); // call into the ported-from-python code
+
+
+        };
+
+        self.after_init = function () {
+
+            self.baudrate_bootloader = baudrate_bootloader
+            if (baudrate_bootloader_flash != None){
+                self.baudrate_bootloader_flash = baudrate_bootloader_flash
+            }else{
+                self.baudrate_bootloader_flash = self.baudrate_bootloader
+            }
+            self.baudrate_flightstack = baudrate_flightstack
+            self.baudrate_flightstack_idx = -1
+            // generate mavlink reboot message:
+            if (target_system != None){
+
+                preflight_reboot(); // sends MAV_CMD_PREFLIGHT_REBOOT_SHUTDOWN
+           
+            }
         }
-        self.baudrate_flightstack = baudrate_flightstack
-        self.baudrate_flightstack_idx = -1
-        // generate mavlink reboot message:
-        if (target_system != None){
-            //from pymavlink import mavutil
-            var m = mavutil.mavlink.MAVLink_command_long_message(
-                target_system,
-                target_component,
-                mavutil.mavlink.MAV_CMD_PREFLIGHT_REBOOT_SHUTDOWN,
-                1, // confirmation
-                3, // remain in bootloader
-                0,
-                0,
-                0,
-                0,
-                0,
-                0)
-            mav = mavutil.mavlink.MAVLink(
-                                        srcSystem=source_system,
-                                        srcComponent=source_component)
-            self.MAVLINK_REBOOT_ID1 = m.pack(mav)
-            self.MAVLINK_REBOOT_ID0 = None
+
+
+            // attempt to get back into sync with the bootloader
+        self.__sync = function(){
+            // send a stream of ignored bytes longer than the longest possible conversation
+            // that we might still have in progress
+            // self.__send(this.NOP * (this.PROG_MULTI_MAX + 2))
+            //self.port.flushInput() // buzz todo impl flush here 
+            var z = [this.GET_SYNC , this.EOC];
+            self.__send(z)
+            self.__getSync()
         }
+
     }
+
+    //-------------------------------------------------------
 
     close(){
-        if (self.port != None){
-            self.port.close()}
+        if (this.port != None){
+            this.port.close()}
     }
 
+
+
     open(){
-        timeout = time.time() + 0.2;
+        var timeout = time.time() + 0.2;
     
+        var portopen = false;
         // Attempt to open the port while it exists and until timeout occurs
-        while (self.port != None){
+        while (this.port != None){
             portopen = True
             try{
-                portopen = self.port.is_open
+                portopen = this.port.is_open
             }catch (AttributeError){
-                portopen = self.port.isOpen()
+                portopen = this.port.isOpen()
             }
 
             if (! portopen && (time.time() < timeout)){
                 try{
-                    self.port.open()
+                    this.port.open()
                 }catch (OSError){
                     // wait for the port to be ready
                     time.sleep(0.04)
+                    
                 // }catch (serial.SerialException){
                 //     // if open fails, try again later
                 //     time.sleep(0.04)
@@ -251,12 +386,22 @@ class uploader{
         }
     }
 
+    // char string
     __send( c){
-        self.port.write(c)
+        //this.port.write(c)
+        console.log("data:",c);
+        //
+        var bufferOut = new ArrayBuffer(c.length);
+        var bufferView = new Uint8Array(bufferOut);
+
+        // set Array values inside bufferView (alternative to for loop)
+        bufferView.set(c);
+        serial.send(bufferOut, function (writeInfo) {});
     }
 
     __recv( count=1){
-        c = self.port.read(count)
+        //c = this.port.read(count)
+        c = 
         if( len(c) < 1){
             throw RuntimeError("timeout waiting for data (%u bytes)" % count)
         }
@@ -265,47 +410,40 @@ class uploader{
     }
 
     __recv_int(){
-        raw = self.__recv(4)
+        raw = this.__recv(4)
         val = struct.unpack("<I", raw) 
         return val[0]
     }
 
     __getSync(){
-        self.port.flush()
-        c = bytes(self.__recv())
-        if (c != self.INSYNC)
+        //this.port.flush() todo impl flush
+        c = bytes(this.__recv())
+        
+        if (c != this.INSYNC)
             throw RuntimeError("unexpected %s instead of INSYNC" % c);
-        c = self.__recv()
-        if (c == self.INVALID)
+        c = this.__recv()
+        if (c == this.INVALID)
             throw RuntimeError("bootloader reports INVALID OPERATION");
-        if (c == self.FAILED)
+        if (c == this.FAILED)
             throw RuntimeError("bootloader reports OPERATION FAILED");
-        if (c != self.OK)
+        if (c != this.OK)
             throw RuntimeError("unexpected response 0x%x instead of OK" % ord(c));
     }
 
-    // attempt to get back into sync with the bootloader
-    __sync(){
-        // send a stream of ignored bytes longer than the longest possible conversation
-        // that we might still have in progress
-        // self.__send(uploader.NOP * (uploader.PROG_MULTI_MAX + 2))
-        self.port.flushInput()
-        self.__send(uploader.GET_SYNC + uploader.EOC)
-        self.__getSync()
-    }
+
 
     __trySync(){
         try{
-            self.port.flush()
-            if (self.__recv() != self.INSYNC){
+            //this.port.flush() todo
+            if (this.__recv() != this.INSYNC){
                 // print("unexpected 0x%x instead of INSYNC" % ord(c))
                 return False
             }
-            c = self.__recv()
-            if (c == self.BAD_SILICON_REV){
+            c = this.__recv()
+            if (c == this.BAD_SILICON_REV){
                 throw NotImplementedError()
             }
-            if (c != self.OK){
+            if (c != this.OK){
                 // print("unexpected 0x%x instead of OK" % ord(c))
                 return False
             }
@@ -320,41 +458,41 @@ class uploader{
     }
     // send the GET_DEVICE command and wait for an info parameter
     __getInfo( param){
-        self.__send(uploader.GET_DEVICE + param + uploader.EOC)
-        value = self.__recv_int()
-        self.__getSync()
+        this.__send(this.GET_DEVICE + param + this.EOC)
+        value = this.__recv_int()
+        this.__getSync()
         return value
     }
 
     // send the GET_OTP command and wait for an info parameter
     __getOTP( param){
         t = struct.pack("I", param)  // int param as 32bit ( 4 byte ) char array.
-        self.__send(uploader.GET_OTP + t + uploader.EOC)
-        value = self.__recv(4)
-        self.__getSync()
+        this.__send(this.GET_OTP + t + this.EOC)
+        value = this.__recv(4)
+        this.__getSync()
         return value
     }
     // send the GET_SN command and wait for an info parameter
     __getSN( param){
         t = struct.pack("I", param)  // int param as 32bit ( 4 byte ) char array.
-        self.__send(uploader.GET_SN + t + uploader.EOC)
-        value = self.__recv(4)
-        self.__getSync()
+        this.__send(this.GET_SN + t + this.EOC)
+        value = this.__recv(4)
+        this.__getSync()
         return value
     }
     // send the GET_CHIP command
     __getCHIP(){
-        self.__send(uploader.GET_CHIP + uploader.EOC)
-        value = self.__recv_int()
-        self.__getSync()
+        this.__send(this.GET_CHIP + this.EOC)
+        value = this.__recv_int()
+        this.__getSync()
         return value
     }
     // send the GET_CHIP command
     __getCHIPDes(){
-        self.__send(uploader.GET_CHIP_DES + uploader.EOC)
-        length = self.__recv_int()
-        value = self.__recv(length)
-        self.__getSync()
+        this.__send(this.GET_CHIP_DES + this.EOC)
+        length = this.__recv_int()
+        value = this.__recv(length)
+        this.__getSync()
         if (runningPython3)
             value = value.decode('ascii')
         peices = value.split(",")
@@ -374,8 +512,8 @@ class uploader{
     // send the CHIP_ERASE command and wait for the bootloader to become ready
     __erase( label){
         print("\n", end='')
-        self.__send(uploader.CHIP_ERASE +
-                    uploader.EOC)
+        this.__send(this.CHIP_ERASE +
+                    this.EOC)
 
         // erase is very slow, give it 20s
         deadline = time.time() + 20.0
@@ -384,14 +522,14 @@ class uploader{
             // Draw progress bar (erase usually takes about 9 seconds to complete)
             estimatedTimeRemaining = deadline-time.time()
             if (estimatedTimeRemaining >= 9.0){
-                self.__drawProgressBar(label, 20.0-estimatedTimeRemaining, 9.0)
+                this.__drawProgressBar(label, 20.0-estimatedTimeRemaining, 9.0)
             }else{
-                self.__drawProgressBar(label, 10.0, 10.0)
+                this.__drawProgressBar(label, 10.0, 10.0)
                 sys.stdout.write(" (timeout: %d seconds) " % int(deadline-time.time()))
                 sys.stdout.flush()
             }
-            if (self.__trySync()){
-                self.__drawProgressBar(label, 10.0, 10.0)
+            if (this.__trySync()){
+                this.__drawProgressBar(label, 10.0, 10.0)
                 return
             }
         }
@@ -405,11 +543,11 @@ class uploader{
         else
             length = chr(len(data))
 
-        self.__send(uploader.PROG_MULTI)
-        self.__send(length)
-        self.__send(data)
-        self.__send(uploader.EOC)
-        self.__getSync()
+        this.__send(this.PROG_MULTI)
+        this.__send(length)
+        this.__send(data)
+        this.__send(this.EOC)
+        this.__getSync()
     }
 
     // verify multiple bytes in flash
@@ -420,17 +558,17 @@ class uploader{
         else
             length = chr(len(data))
 
-        self.__send(uploader.READ_MULTI)
-        self.__send(length)
-        self.__send(uploader.EOC)
-        self.port.flush()
-        programmed = self.__recv(len(data))
+        this.__send(this.READ_MULTI)
+        this.__send(length)
+        this.__send(this.EOC)
+        //this.port.flush() todo
+        programmed = this.__recv(len(data))
         if (programmed != data){
             print("got    " + binascii.hexlify(programmed))
             print("expect " + binascii.hexlify(data))
             return False
         }
-        self.__getSync()
+        this.__getSync()
         return True
     }
     // read multiple bytes from flash
@@ -441,23 +579,23 @@ class uploader{
         else
             clength = chr(length)
 
-        self.__send(uploader.READ_MULTI)
-        self.__send(clength)
-        self.__send(uploader.EOC)
-        self.port.flush()
-        ret = self.__recv(length)
-        self.__getSync()
+        this.__send(this.READ_MULTI)
+        this.__send(clength)
+        this.__send(this.EOC)
+        //this.port.flush() todo
+        ret = this.__recv(length)
+        this.__getSync()
         return ret
     }
 
     // send the reboot command
     __reboot(){
-        self.__send(uploader.REBOOT +  uploader.EOC)
-        self.port.flush()
+        this.__send(this.REBOOT +  this.EOC)
+        //this.port.flush() todo
 
         // v3+ can report failure if the first word flash fails
-        if (self.bl_rev >= 3)
-            self.__getSync()
+        if (this.bl_rev >= 3)
+            this.__getSync()
     }
 
     // split a sequence into a list of size-constrained pieces
@@ -473,18 +611,18 @@ class uploader{
     __program( label, fw){
     print("\n", end='')
         code = fw.image
-        groups = self.__split_len(code, uploader.PROG_MULTI_MAX)
+        groups = this.__split_len(code, this.PROG_MULTI_MAX)
 
         uploadProgress = 0
         for (bytes in groups){
-            self.__program_multi(bytes)
+            this.__program_multi(bytes)
 
             // Print upload progress (throttled, so it does not delay upload progress)
             uploadProgress += 1
             if (uploadProgress % 256 == 0)
-                self.__drawProgressBar(label, uploadProgress, len(groups))
+                this.__drawProgressBar(label, uploadProgress, len(groups))
         }
-        self.__drawProgressBar(label, 100, 100)
+        this.__drawProgressBar(label, 100, 100)
     }
 
     // download code
@@ -493,96 +631,96 @@ class uploader{
         f = open(fw, 'wb')
 
         downloadProgress = 0
-        readsize = uploader.READ_MULTI_MAX
+        readsize = this.READ_MULTI_MAX
         total = 0
         while (True){
-            n = min(self.fw_maxsize - total, readsize)
-            bb = self.__read_multi(n)
+            n = min(this.fw_maxsize - total, readsize)
+            bb = this.__read_multi(n)
             f.write(bb)
 
             total += len(bb)
             // Print download progress (throttled, so it does not delay download progress)
             downloadProgress += 1
             if (downloadProgress % 256 == 0)
-                self.__drawProgressBar(label, total, self.fw_maxsize)
+                this.__drawProgressBar(label, total, this.fw_maxsize)
             if (len(bb) < readsize)
                 break
         }
         f.close()
-        self.__drawProgressBar(label, total, self.fw_maxsize)
+        this.__drawProgressBar(label, total, this.fw_maxsize)
         print("\nReceived %u bytes to %s" % (total, fw))
     }
 
     // verify code
     __verify_v2( label, fw){
         print("\n", end='')
-        self.__send(uploader.CHIP_VERIFY +
-                    uploader.EOC)
-        self.__getSync()
+        this.__send(this.CHIP_VERIFY +
+                    this.EOC)
+        this.__getSync()
         code = fw.image
-        groups = self.__split_len(code, uploader.READ_MULTI_MAX)
+        groups = this.__split_len(code, this.READ_MULTI_MAX)
         verifyProgress = 0
         for (bytes in groups){
             verifyProgress += 1
             if (verifyProgress % 256 == 0)
-                self.__drawProgressBar(label, verifyProgress, len(groups))
-            if (! self.__verify_multi(bytes))
+                this.__drawProgressBar(label, verifyProgress, len(groups))
+            if (! this.__verify_multi(bytes))
                 throw RuntimeError("Verification failed")
         }
-        self.__drawProgressBar(label, 100, 100)
+        this.__drawProgressBar(label, 100, 100)
     }
 
     __verify_v3( label, fw){
         print("\n", end='')
-        self.__drawProgressBar(label, 1, 100)
-        expect_crc = fw.crc(self.fw_maxsize)
-        self.__send(uploader.GET_CRC +  uploader.EOC)
-        report_crc = self.__recv_int()
-        self.__getSync()
+        this.__drawProgressBar(label, 1, 100)
+        expect_crc = fw.crc(this.fw_maxsize)
+        this.__send(this.GET_CRC +  this.EOC)
+        report_crc = this.__recv_int()
+        this.__getSync()
         if (report_crc != expect_crc){
             print("Expected 0x%x" % expect_crc)
             print("Got      0x%x" % report_crc)
             throw RuntimeError("Program CRC failed")
         
-        }self.__drawProgressBar(label, 100, 100)
+        }this.__drawProgressBar(label, 100, 100)
     }
     __set_boot_delay( boot_delay){
-        self.__send(uploader.SET_BOOT_DELAY +
+        this.__send(this.SET_BOOT_DELAY +
                     struct.pack("b", boot_delay) +
-                    uploader.EOC)
-        self.__getSync()
+                    this.EOC)
+        this.__getSync()
     }
 
     __setbaud( baud){
-        self.__send(uploader.SET_BAUD +
+        this.__send(this.SET_BAUD +
                     struct.pack("I", baud) +
-                    uploader.EOC)
-        self.__getSync()
+                    this.EOC)
+        this.__getSync()
     }
 
     // get basic data about the board
     identify(){
         // make sure we are in sync before starting
-        self.__sync()
+        this.__sync()
 
         // get the bootloader protocol ID first
-        self.bl_rev = self.__getInfo(uploader.INFO_BL_REV)
-        if ((self.bl_rev < uploader.BL_REV_MIN) || (self.bl_rev > uploader.BL_REV_MAX)){
-            print("Unsupported bootloader protocol %d" % self.bl_rev)
+        this.bl_rev = this.__getInfo(this.INFO_BL_REV)
+        if ((this.bl_rev < this.BL_REV_MIN) || (this.bl_rev > this.BL_REV_MAX)){
+            print("Unsupported bootloader protocol %d" % this.bl_rev)
             throw RuntimeError("Bootloader protocol mismatch")
         }
-        self.board_type = self.__getInfo(uploader.INFO_BOARD_ID)
-        self.board_rev = self.__getInfo(uploader.INFO_BOARD_REV)
-        self.fw_maxsize = self.__getInfo(uploader.INFO_FLASH_SIZE)
+        this.board_type = this.__getInfo(this.INFO_BOARD_ID)
+        this.board_rev = this.__getInfo(this.INFO_BOARD_REV)
+        this.fw_maxsize = this.__getInfo(this.INFO_FLASH_SIZE)
     }
 
     dump_board_info(){
         // OTP added in v4:
-        print("Bootloader Protocol: %u" % self.bl_rev)
-        if (self.bl_rev > 3){
+        print("Bootloader Protocol: %u" % this.bl_rev)
+        if (this.bl_rev > 3){
             otp = new ArrayBuffer();
             for (byte in range(0, 32*6, 4)){
-                x = self.__getOTP(byte)
+                x = this.__getOTP(byte)
                 otp = otp + x
             }
             // print(binascii.hexlify(x).decode('Latin-1') + ' ', end='')
@@ -602,7 +740,7 @@ class uploader{
                 print("  coa: " + binascii.b2a_base64(otp_coa).decode('Latin-1'), end='')
                 print("  sn: ", end='')
                 for (byte in range(0, 12, 4)){
-                    x = self.__getSN(byte)
+                    x = this.__getSN(byte)
                     x = x.reverse()  // reverse the bytes
                     print(binascii.hexlify(x).decode('Latin-1'), end='')  // show user
                 }
@@ -612,8 +750,8 @@ class uploader{
              //   pass
             }
         }
-        if (self.bl_rev >= 5){
-            des = self.__getCHIPDes()
+        if (this.bl_rev >= 5){
+            des = this.__getCHIPDes()
             if (len(des) == 2){
                 print("ChipDes:")
                 print("  family: %s" % des[0])
@@ -621,8 +759,8 @@ class uploader{
             }
         }
         print("Chip:")
-        if (self.bl_rev > 4){
-            chip = self.__getCHIP()
+        if (this.bl_rev > 4){
+            chip = this.__getCHIP()
             mcu_id = chip & 0xfff
             revs = {}
 
@@ -678,13 +816,13 @@ class uploader{
                 print("  [unavailable; bootloader too old]")
         }
         print("Info:")
-        print("  flash size: %u" % self.fw_maxsize)
-        var Bname = self.board_name_for_board_id(self.board_type);
+        print("  flash size: %u" % this.fw_maxsize)
+        var Bname = this.board_name_for_board_id(this.board_type);
         if (Bname != None)
-            print("  board_type: %u (%s)" % (self.board_type, Bname))
+            print("  board_type: %u (%s)" % (this.board_type, Bname))
         else
-            print("  board_type: %u" % self.board_type)
-        print("  board_rev: %u" % self.board_rev)
+            print("  board_type: %u" % this.board_type)
+        print("  board_rev: %u" % this.board_rev)
 
         print("Identification complete")
     }
@@ -748,25 +886,25 @@ class uploader{
     // upload the firmware
     upload( fw, force=False, boot_delay=None){
         // Make sure we are doing the right thing
-        if (self.board_type != fw.property('board_id')){
+        if (this.board_type != fw.property('board_id')){
             // ID mismatch: check compatibility
             incomp = True
-            if (self.board_type in compatible_IDs){
-                comp_fw_id = compatible_IDs[self.board_type][0]
-                board_name = compatible_IDs[self.board_type][1]
+            if (this.board_type in compatible_IDs){
+                comp_fw_id = compatible_IDs[this.board_type][0]
+                board_name = compatible_IDs[this.board_type][1]
                 if (comp_fw_id == fw.property('board_id')){
                     msg = "Target %s (board_id: %d) is compatible with firmware for board_id=%u)" % (
-                        board_name, self.board_type, fw.property('board_id'))
+                        board_name, this.board_type, fw.property('board_id'))
                     print("INFO: %s" % msg)
                     incomp = False
                 }
             }
             if (incomp){                       
                 msg = "Firmware not suitable for this board (board_type=%u (%s) board_id=%u (%s))" % (
-                    self.board_type,
-                    self.board_name_for_board_id(self.board_type),
+                    this.board_type,
+                    this.board_name_for_board_id(this.board_type),
                     fw.property('board_id'),
-                    self.board_name_for_board_id(fw.property('board_id')))
+                    this.board_name_for_board_id(fw.property('board_id')))
                 print("WARNING: %s" % msg)
                 
                 if (force)
@@ -775,40 +913,40 @@ class uploader{
                     throw IOError(msg)
             }
         }
-        self.dump_board_info()
+        this.dump_board_info()
 
-        if (self.fw_maxsize < fw.property('image_size'))
+        if (this.fw_maxsize < fw.property('image_size'))
             throw RuntimeError("Firmware image is too large for this board")
 
-        if (self.baudrate_bootloader_flash != self.baudrate_bootloader){
-            print("Setting baudrate to %u" % self.baudrate_bootloader_flash)
-            self.__setbaud(self.baudrate_bootloader_flash)
-            self.port.baudrate = self.baudrate_bootloader_flash
-            self.__sync()
+        if (this.baudrate_bootloader_flash != this.baudrate_bootloader){
+            print("Setting baudrate to %u" % this.baudrate_bootloader_flash)
+            this.__setbaud(this.baudrate_bootloader_flash)
+            this.port.baudrate = this.baudrate_bootloader_flash
+            this.__sync()
         }
-        self.__erase("Erase  ")
-        self.__program("Program", fw)
+        this.__erase("Erase  ")
+        this.__program("Program", fw)
 
-        if (self.bl_rev == 2)
-            self.__verify_v2("Verify ", fw)
+        if (this.bl_rev == 2)
+            this.__verify_v2("Verify ", fw)
         else
-            self.__verify_v3("Verify ", fw)
+            this.__verify_v3("Verify ", fw)
 
         if (boot_delay != None)
-            self.__set_boot_delay(boot_delay)
+            this.__set_boot_delay(boot_delay)
 
         print("\nRebooting.\n")
-        self.__reboot()
-        self.port.close()
+        this.__reboot()
+        this.port.close()
     }
 
     __next_baud_flightstack(){
-        self.baudrate_flightstack_idx = self.baudrate_flightstack_idx + 1
-        if (self.baudrate_flightstack_idx >= len(self.baudrate_flightstack))
+        this.baudrate_flightstack_idx = this.baudrate_flightstack_idx + 1
+        if (this.baudrate_flightstack_idx >= len(this.baudrate_flightstack))
             return False
 
         try{
-            self.port.baudrate = self.baudrate_flightstack[self.baudrate_flightstack_idx]
+            this.port.baudrate = this.baudrate_flightstack[this.baudrate_flightstack_idx]
         }catch (Exception){
             return False
         }
@@ -816,30 +954,30 @@ class uploader{
     }
 
     send_reboot(){
-        if (! self.__next_baud_flightstack())
+        if (! this.__next_baud_flightstack())
             return False
 
-        print("Attempting reboot on %s with baudrate=%d..." % (self.port.port, self.port.baudrate), file=sys.stderr)
+        print("Attempting reboot on %s with baudrate=%d..." % (this.port.port, this.port.baudrate), file=sys.stderr)
         print("If the board does not respond, unplug and re-plug the USB connector.", file=sys.stderr)
 
         try{
             // try MAVLINK command first
-            self.port.flush()
-            if (self.MAVLINK_REBOOT_ID1 != None)
-                self.__send(self.MAVLINK_REBOOT_ID1)
-            if (self.MAVLINK_REBOOT_ID0 != None)
-                self.__send(self.MAVLINK_REBOOT_ID0)
+            //this.port.flush() todo
+            if (this.MAVLINK_REBOOT_ID1 != None)
+                this.__send(this.MAVLINK_REBOOT_ID1)
+            if (this.MAVLINK_REBOOT_ID0 != None)
+                this.__send(this.MAVLINK_REBOOT_ID0)
             // then try reboot via NSH
-            self.__send(uploader.NSH_INIT)
-            self.__send(uploader.NSH_REBOOT_BL)
-            self.__send(uploader.NSH_INIT)
-            self.__send(uploader.NSH_REBOOT)
-            self.port.flush()
-            self.port.baudrate = self.baudrate_bootloader
+            this.__send(this.NSH_INIT)
+            this.__send(this.NSH_REBOOT_BL)
+            this.__send(this.NSH_INIT)
+            this.__send(this.NSH_REBOOT)
+            this.port.flush()
+            this.port.baudrate = this.baudrate_bootloader
         }catch (Exception){
             try{
-                self.port.flush()
-                self.port.baudrate = self.baudrate_bootloader
+                //this.port.flush() todo
+                this.port.baudrate = this.baudrate_bootloader
             }catch (Exception){
                //pass
             }
@@ -849,46 +987,55 @@ class uploader{
 
     // upload the firmware
     download( fw){
-        if (self.baudrate_bootloader_flash != self.baudrate_bootloader){
-            print("Setting baudrate to %u" % self.baudrate_bootloader_flash)
-            self.__setbaud(self.baudrate_bootloader_flash)
-            self.port.baudrate = self.baudrate_bootloader_flash
-            self.__sync()
+        if (this.baudrate_bootloader_flash != this.baudrate_bootloader){
+            print("Setting baudrate to %u" % this.baudrate_bootloader_flash)
+            this.__setbaud(this.baudrate_bootloader_flash)
+            this.port.baudrate = this.baudrate_bootloader_flash
+            this.__sync()
         }
-        self.__download("Download", fw)
-        self.port.close()
+        this.__download("Download", fw)
+        this.port.close()
+    }
+
+    // use it as "await sleep(250);"  // ms
+    async sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    // open, identify,reboot,sleep,close, repeat till ..
+    async find_bootloader(){
+        while (True){
+            this.open()
+
+            // port is open, try talking to it
+        // try{
+                //# identify the bootloader
+                this.identify()
+                print("Found board %x,%x bootloader rev %x on %s" % (this.board_type, this.board_rev, this.bl_rev, this.port))
+                return True
+
+            //}//except (Exception) {
+            //     //pass
+            // }
+            reboot_sent = this.send_reboot()
+
+            //# wait for the reboot, without we might run into Serial I/O Error 5
+            //time.sleep(0.25)
+            await sleep(250);//ms
+
+            //# always close the port
+            this.close()
+
+            //# wait for the close, without we might run into Serial I/O Error 6
+            //time.sleep(0.3)
+            await sleep(300);//ms
+
+            if (! reboot_sent)
+                return False
+        }
     }
 //---------
 }
 
 
-function find_bootloader(up, port){
-    while (True){
-        up.open()
-
-        // port is open, try talking to it
-       // try{
-            //# identify the bootloader
-            up.identify()
-            print("Found board %x,%x bootloader rev %x on %s" % (up.board_type, up.board_rev, up.bl_rev, port))
-            return True
-
-        //}//except (Exception) {
-        //     //pass
-        // }
-        reboot_sent = up.send_reboot()
-
-        //# wait for the reboot, without we might run into Serial I/O Error 5
-        time.sleep(0.25)
-
-        //# always close the port
-        up.close()
-
-        //# wait for the close, without we might run into Serial I/O Error 6
-        time.sleep(0.3)
-
-        if (! reboot_sent)
-            return False
-    }
-}
 

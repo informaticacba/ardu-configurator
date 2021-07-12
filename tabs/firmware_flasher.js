@@ -34,20 +34,6 @@ TABS.firmware_flasher.initialize = function (callback) {
             worker.postMessage(str);
         }
 
-        // function parseFilename(filename) {
-        //     //var targetFromFilenameExpression = /ARDUPILOT_([\d.]+)?_?([^.]+)\.(.*)/;
-        //     var targetFromFilenameExpression = /ARDUPILOT_([\d.]+(?:-rc\d+)?)?_?([^.]+)\.(.*)/;
-        //     var match = targetFromFilenameExpression.exec(filename);
-
-        //     if (!match) {
-        //         return null;
-        //     }
-
-        //     return {
-        //         target: match[2].replace("_", " "),
-        //         format: match[3],
-        //     };
-        // }
 
         $('input.show_development_releases').click(function(){
             buildBoardOptions();
@@ -61,48 +47,6 @@ TABS.firmware_flasher.initialize = function (callback) {
 
             var versions_e = $('select[name="firmware_version"]').empty();
             versions_e.append($("<option value='0'>{0}</option>".format(chrome.i18n.getMessage('firmwareFlasherOptionLabelSelectFirmwareVersion'))));
-
-            //  {
-//             "mav-type": "ANTENNA_TRACKER",
-//             "vehicletype": "AntennaTracker",
-//             "mav-firmware-version-minor": "1",
-//             "format": "ELF",
-//             "url": "https://firmware.ardupilot.org/AntennaTracker/stable-1.1.0/edge/antennatracker",
-//             "mav-firmware-version-type": "STABLE-1.1.0",
-//             "mav-firmware-version-patch": "0",
-//             "mav-autopilot": "ARDUPILOTMEGA",
-//             "platform": "edge",
-//             "mav-firmware-version": "1.1.0",
-//             "git-sha": "e22170628d5a03a18c0445c5af2d3f3688c37ed4",
-//             "mav-firmware-version-major": "1",
-//             "latest": 0
-//         },
-
-//          {
-//             "board_id": 136,
-//             "mav-type": "FIXED_WING",
-//             "vehicletype": "Plane",
-//             "mav-firmware-version-minor": "1",
-//             "format": "apj",
-//             "url": "https://firmware.ardupilot.org/Plane/beta/mRoX21-777/arduplane.apj",
-//             "mav-firmware-version-type": "BETA",
-//             "brand_name": "mRo X2.1-777",
-//             "mav-firmware-version-patch": "0",
-//             "mav-autopilot": "ARDUPILOTMEGA",
-//             "USBID": [
-//                 "0x1209/0x5740"
-//             ],
-//             "platform": "mRoX21-777",
-//             "mav-firmware-version": "4.1.0",
-//             "image_size": 1590472,
-//             "bootloader_str": [
-//                 "mRoX21-777-BL"
-//             ],
-//             "git-sha": "db37898e362cc987dfb5a871185009203423c8b9",
-//             "mav-firmware-version-major": "4",
-//             "manufacturer": "mRobotics",
-//             "latest": 0
-//         },
 
             var releases = {};
             var sortedTargets = [];
@@ -391,21 +335,30 @@ TABS.firmware_flasher.initialize = function (callback) {
         $('a.flash_firmware2').click(function () { //Buzz2
 
 
-        var port = "/dev/ttyACM0";
+            //var port = "/dev/ttyACM0";
 
-        var up = new uploader(port,
-            115200,//args.baud_bootloader,
-            57600,//baud_flightstack,
-            115200,//args.baud_bootloader_flash,
-            1,//args.target_system,
-            1,//args.target_component,
-            255,//args.source_system,
-            0,//args.source_component
-            );
+            var port = String($('div#port-picker #port').val())
+
+            //(port, baud, hex,
 
 
+            //------------------
 
+            var up = new uploader(port,
+                115200,//args.baud_bootloader,
+                57600,//baud_flightstack,
+                115200,//args.baud_bootloader_flash,
+                1,//args.target_system,
+                1,//args.target_component,
+                255,//args.source_system,
+                0,//args.source_component
+                );
+    
+                //-----------
+
+        
         });
+
         
 
         $('a.flash_firmware').click(function () {
@@ -445,6 +398,7 @@ TABS.firmware_flasher.initialize = function (callback) {
                                 if ($('input.flash_manual_baud').is(':checked')) {
                                     baud = parseInt($('#flash_manual_baud_rate').val());
                                 }
+                                // buzz todo, integrate ardu bootloader based on vid /pid detect?
 
 
                                 STM32.connect(port, baud, parsed_hex, options);
@@ -626,7 +580,9 @@ TABS.firmware_flasher.initialize = function (callback) {
 
         GUI.content_ready(callback);
     });
-};
+}
+
+ // ctrl-shift-pipe for matching jumping to matching brackets in vscode
 
 TABS.firmware_flasher.cleanup = function (callback) {
     PortHandler.flush_callbacks();
@@ -637,3 +593,4 @@ TABS.firmware_flasher.cleanup = function (callback) {
 
     if (callback) callback();
 };
+
