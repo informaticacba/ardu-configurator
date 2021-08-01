@@ -32,8 +32,9 @@ const pako = require('pako');
 //
 
 // sone python-isms hand
-var None = undefined;
-var True = true;
+const None = undefined;
+const True = true;
+const False = false;
 
 
 // python has seconds-since-epoch as a float, js has something a bit diff
@@ -49,6 +50,17 @@ time.sleep = async function ( secs ){ // whole or partial secs
 
     return new Promise(resolve => setTimeout(resolve, secs*1000.0));
 }
+
+len = function(c) {
+    if ( c == undefined) return 0; 
+    return c.length;
+}
+
+// use it as "await sleep(250);"  // ms
+sleep = async function(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 
 // CRC equivalent to crc_crc32() in AP_Math/crc.cpp
 crctab = new ArrayBuffer( [
@@ -149,6 +161,8 @@ class uploader{
 
         //----------------
 
+        return; // BUZZ HACK
+
         //# protocol bytes
         this.INSYNC          = 0x12;
         this.EOC             = 0x20;
@@ -219,24 +233,31 @@ class uploader{
         this.xxdata = '';
 
         this.serial_id = -1;
+        this.openInfo = -1;
 
 
-        // buffffersize 1 forces the serial.onReceive listener to trigger on every BYTE
-        serial.connect(this.port, {bitrate: this.baud, parityBit: 'even', stopBits: 'one' ,bufferSize:1}, function (openInfo) {
-            if (openInfo) {
-                // we are connected, disabling connect button in the UI
-                //GUI.connect_lock = true;
-                // NO THIS hERE
+        this.initialconnect = function () {
 
-                self.serial_id = openInfo.connectionId;
+            // buffffersize 1 forces the serial.onReceive listener to trigger on every BYTE
+            serial.connect(this.port, {bitrate: this.baud, parityBit: 'even', stopBits: 'one' ,bufferSize:1}, function (openInfo) {
+                if (openInfo) {
+                    // we are connected, disabling connect button in the UI
+                    //GUI.connect_lock = true;
+                    // NO THIS hERE
 
-                console.log('Succeeded to open serial port');
-                self.initialize();
+                    self.serial_id = openInfo.connectionId;
+                    self.openInfo = openInfo;
 
-            } else {
-                console.log('Failed to open serial port');
-            }
-        });
+
+                    console.log('Succeeded to open serial port');
+                    self.initialize();  // add on-recieve hooks etc.
+
+                } else {
+                    console.log('Failed to open serial port');
+                }
+            });
+
+        }
 
 
         // no input parameters
@@ -264,18 +285,22 @@ class uploader{
             // }
         };
 
-        // Array = array of bytes that will be send over serial
+        // arr = array of bytes that will be send over serial
         // bytes_to_read = received bytes necessary to trigger read_callback
         // callback = function that will be executed after received bytes = bytes_to_read
-        this.send = function (Array, bytes_to_read, callback) {
+        this.send = function ( arr, bytes_to_read, callback) {
+
+            // if its a single byte passed in, wrap it in array for handling
+            if ( typeof arr == 'number' ) arr = [arr];
+
             // flip flag
             this.upload_process_alive = true;
 
-            var bufferOut = new ArrayBuffer(Array.length);
+            var bufferOut = new ArrayBuffer(arr.length);
             var bufferView = new Uint8Array(bufferOut);
 
-            // set Array values inside bufferView (alternative to for loop)
-            bufferView.set(Array);
+            // set arr values inside bufferView (alternative to for loop)
+            bufferView.set(arr);
 
             // update references
             this.bytes_to_read = bytes_to_read;
@@ -294,6 +319,22 @@ class uploader{
 
             serial.onReceive.addListener(function (info) {
                 self.read(info);
+            });
+
+            serial.onReceiveError.addListener(function watch_for_on_receive_errors(info) {
+
+                switch (info.error) {
+
+                    case 'device_lost': // this is what happens when we do a mavlink reboot...
+                        console.log("mav reboot detected...")
+                    break;
+
+                    default:
+                        console.log("unhandled.")
+                    break;
+
+                }
+
             });
 
             // this triggers aFTER full flash....?
@@ -354,78 +395,64 @@ class uploader{
             this.__getSync()
         }
 
+        this.initialconnect(); //uses this.port
+
     }
 
     //-------------------------------------------------------
 
     close(){
-        if (this.port != None){
-            this.port.close()}
+        // if (this.port != None){
+        //     this.port.close()}
+        //console.log("buzz close()! ")
+        serial.disconnect();
+        this.openInfo = -1; // flg to say we r closed...
     }
 
 
 
-    open(){
+    async open(){
         var timeout = time.time() + 0.2;
     
         var portopen = false;
         // Attempt to open the port while it exists and until timeout occurs
-        while (this.port != None){
-            portopen = True
-            try{
-                portopen = this.port.is_open
-            }catch (AttributeError){
-                portopen = this.port.isOpen()
-            }
+        while (this.openInfo == -1){
 
-            if (! portopen && (time.time() < timeout)){
-                try{
-                    this.port.open()
-                }catch (OSError){
-                    // wait for the port to be ready
-                    time.sleep(0.04)
-                    
-                // }catch (serial.SerialException){
-                //     // if open fails, try again later
-                //     time.sleep(0.04)
-                }
-            }else{
-                break
+
+            if ( serial.newport && this.newport != '') {
+                console.log("NEWPORT",serial.newport)
+                this.port = serial.newport;
+                this.initialconnect(); //uses this.port, and sets self.openInfo on successful connect
+                serial.newport = undefined;
             }
+            
+         
+            await sleep(40);//ms 
+
+            //console.log("open() waiting for info != -1");
+
         }
     }
 
     // char string
     __send( c){
-        //this.port.write(c)
-        // console.log("data out:",c,typeof(c));
-        // //
-        // var bufferOut = new ArrayBuffer(c.length+1);
-        // var bufferView = new Uint8Array(bufferOut);
 
-        // if (typeof(c) == "number" ) {
-        //     c = new Uint8Array([c]);
-            
-        // }
-
-        // // set Array values inside bufferView (alternative to for loop)
-        // bufferView.set(c,0);
-       // serial.send(c, function (writeInfo) {});
+        this.send(c);
     }
 
-    len(c) {
-        if ( c == undefined) return 0; 
-        return c.length;
-    }
+    // len(c) {
+    //     if ( c == undefined) return 0; 
+    //     return c.length;
+    // }
 
     __recv( count=1){
         //c = this.port.read(count)
         var c = this.xxdata;
         this.xxdata = ''; 
-        if( this.len(c) < 1){
+        if( len(c) < 1){
            // throw new Error("timeout waiting for data ("+count+" bytes)" )
         }
-        // print("recv " + binascii.hexlify(c))
+        // console.log("recv " + binascii.hexlify(c))
         return c
     }
 
@@ -457,7 +484,7 @@ class uploader{
         try{
             //this.port.flush() todo
             if (this.__recv() != this.INSYNC){
-                // print("unexpected 0x%x instead of INSYNC" % ord(c))
+                // console.log("unexpected 0x%x instead of INSYNC" % ord(c))
                 return False
             }
             c = this.__recv()
@@ -465,7 +492,7 @@ class uploader{
                 throw NotImplementedError()
             }
             if (c != this.OK){
-                // print("unexpected 0x%x instead of OK" % ord(c))
+                // console.log("unexpected 0x%x instead of OK" % ord(c))
                 return False
             }
             return True
@@ -532,7 +559,7 @@ class uploader{
 
     // send the CHIP_ERASE command and wait for the bootloader to become ready
     __erase( label){
-        print("\n", end='')
+        console.log("\n", end='')
         this.__send(this.CHIP_ERASE +
                     this.EOC)
 
@@ -585,8 +612,8 @@ class uploader{
         //this.port.flush() todo
         programmed = this.__recv(len(data))
         if (programmed != data){
-            print("got    " + binascii.hexlify(programmed))
-            print("expect " + binascii.hexlify(data))
+            console.log("got    " + binascii.hexlify(programmed))
+            console.log("expect " + binascii.hexlify(data))
             return False
         }
         this.__getSync()
@@ -630,7 +657,7 @@ class uploader{
     
     // upload code
     __program( label, fw){
-    print("\n", end='')
+    console.log("\n", end='')
         code = fw.image
         groups = this.__split_len(code, this.PROG_MULTI_MAX)
 
@@ -648,7 +675,7 @@ class uploader{
 
     // download code
     __download( label, fw){
-        print("\n", end='')
+        console.log("\n", end='')
         f = open(fw, 'wb')
 
         downloadProgress = 0
@@ -669,12 +696,12 @@ class uploader{
         }
         f.close()
         this.__drawProgressBar(label, total, this.fw_maxsize)
-        print("\nReceived %u bytes to %s" % (total, fw))
+        console.log("\nReceived %u bytes to %s" % (total, fw))
     }
 
     // verify code
     __verify_v2( label, fw){
-        print("\n", end='')
+        console.log("\n", end='')
         this.__send(this.CHIP_VERIFY +
                     this.EOC)
         this.__getSync()
@@ -692,15 +719,15 @@ class uploader{
     }
 
     __verify_v3( label, fw){
-        print("\n", end='')
+        console.log("\n", end='')
         this.__drawProgressBar(label, 1, 100)
         expect_crc = fw.crc(this.fw_maxsize)
         this.__send(this.GET_CRC +  this.EOC)
         report_crc = this.__recv_int()
         this.__getSync()
         if (report_crc != expect_crc){
-            print("Expected 0x%x" % expect_crc)
-            print("Got      0x%x" % report_crc)
+            console.log("Expected 0x%x" % expect_crc)
+            console.log("Got      0x%x" % report_crc)
             throw new Error("Program CRC failed")
         
         }this.__drawProgressBar(label, 100, 100)
@@ -725,26 +752,31 @@ class uploader{
         this.__sync()
 
         // get the bootloader protocol ID first
-        this.bl_rev = this.__getInfo(this.INFO_BL_REV)
+        this.bl_rev = this.__getInfo(this.INFO_BL_REV);
         if ((this.bl_rev < this.BL_REV_MIN) || (this.bl_rev > this.BL_REV_MAX)){
-            print("Unsupported bootloader protocol %d" % this.bl_rev)
+            console.log("Unsupported bootloader protocol %d" % this.bl_rev)
             throw new Error("Bootloader protocol mismatch")
         }
-        this.board_type = this.__getInfo(this.INFO_BOARD_ID)
-        this.board_rev = this.__getInfo(this.INFO_BOARD_REV)
-        this.fw_maxsize = this.__getInfo(this.INFO_FLASH_SIZE)
+        this.board_type = this.__getInfo(this.INFO_BOARD_ID)??-1;
+        this.board_rev = this.__getInfo(this.INFO_BOARD_REV)??-1;
+        this.fw_maxsize = this.__getInfo(this.INFO_FLASH_SIZE)??-1;
+
+        if ( ( this.bl_rev != undefined) ||( this.board_type != -1 ) ) {
+            return true
+        }
+        return false
     }
 
     dump_board_info(){
         // OTP added in v4:
-        print("Bootloader Protocol: %u" % this.bl_rev)
+        console.log("Bootloader Protocol: %u" % this.bl_rev)
         if (this.bl_rev > 3){
             otp = new ArrayBuffer();
             for (byte in range(0, 32*6, 4)){
                 x = this.__getOTP(byte)
                 otp = otp + x
             }
-            // print(binascii.hexlify(x).decode('Latin-1') + ' ', end='')
+            // console.log(binascii.hexlify(x).decode('Latin-1') + ' ', end='')
             // see src/modules/systemlib/otp.h in px4 code:
             otp_id = otp.slice(0,4);
             otp_idtype = otp.slice(4,5);
@@ -753,19 +785,19 @@ class uploader{
             otp_coa = otp.slice(32,160);
             // show user:
             try{
-                print("OTP:")
-                print("  type: " + otp_id.decode('Latin-1'))
-                print("  idtype: " + binascii.b2a_qp(otp_idtype).decode('Latin-1'))
-                print("  vid: " + binascii.hexlify(otp_vid).decode('Latin-1'))
-                print("  pid: " + binascii.hexlify(otp_pid).decode('Latin-1'))
-                print("  coa: " + binascii.b2a_base64(otp_coa).decode('Latin-1'), end='')
-                print("  sn: ", end='')
+                console.log("OTP:")
+                console.log("  type: " + otp_id.decode('Latin-1'))
+                console.log("  idtype: " + binascii.b2a_qp(otp_idtype).decode('Latin-1'))
+                console.log("  vid: " + binascii.hexlify(otp_vid).decode('Latin-1'))
+                console.log("  pid: " + binascii.hexlify(otp_pid).decode('Latin-1'))
+                console.log("  coa: " + binascii.b2a_base64(otp_coa).decode('Latin-1'), end='')
+                console.log("  sn: ", end='')
                 for (byte in range(0, 12, 4)){
                     x = this.__getSN(byte)
                     x = x.reverse()  // reverse the bytes
-                    print(binascii.hexlify(x).decode('Latin-1'), end='')  // show user
+                    console.log(binascii.hexlify(x).decode('Latin-1'), end='')  // show user
                 }
-                print('')
+                console.log('')
             }catch (Exception){
                 // ignore bad character encodings
              //   pass
@@ -774,12 +806,12 @@ class uploader{
         if (this.bl_rev >= 5){
             des = this.__getCHIPDes()
             if (len(des) == 2){
-                print("ChipDes:")
-                print("  family: %s" % des[0])
-                print("  revision: %s" % des[1])
+                console.log("ChipDes:")
+                console.log("  family: %s" % des[0])
+                console.log("  revision: %s" % des[1])
             }
         }
-        print("Chip:")
+        console.log("Chip:")
         if (this.bl_rev > 4){
             chip = this.__getCHIP()
             mcu_id = chip & 0xfff
@@ -822,30 +854,30 @@ class uploader{
                     label = revs[rev][0];
                     flawed = revs[rev][1];
                     if (flawed && (family == 0x419) ){
-                        print("  %x %s rev%s (flawed; 1M limit, see STM32F42XX Errata sheet sec. 2.1.10)" % (chip, mcu, label));
+                        console.log("  %x %s rev%s (flawed; 1M limit, see STM32F42XX Errata sheet sec. 2.1.10)" % (chip, mcu, label));
                     }else if (family == 0x419) {
-                        print("  %x %s rev%s (no 1M flaw)" % (chip, mcu, label));
+                        console.log("  %x %s rev%s (no 1M flaw)" % (chip, mcu, label));
                     } else {
-                        print("  %x %s rev%s" % (chip, mcu, label));
+                        console.log("  %x %s rev%s" % (chip, mcu, label));
                     }
                 }
             }elif (family in F7_IDS)
-                print("  %s %08x" % (F7_IDS[family], chip))
+                console.log("  %s %08x" % (F7_IDS[family], chip))
             elif (family in H7_IDS)
-                print("  %s %08x" % (H7_IDS[family], chip))
+                console.log("  %s %08x" % (H7_IDS[family], chip))
         }else{
-                print("  [unavailable; bootloader too old]")
+                console.log("  [unavailable; bootloader too old]")
         }
-        print("Info:")
-        print("  flash size: %u" % this.fw_maxsize)
+        console.log("Info:")
+        console.log("  flash size: %u" % this.fw_maxsize)
         var Bname = this.board_name_for_board_id(this.board_type);
         if (Bname != None)
-            print("  board_type: %u (%s)" % (this.board_type, Bname))
+            console.log("  board_type: %u (%s)" % (this.board_type, Bname))
         else
-            print("  board_type: %u" % this.board_type)
-        print("  board_rev: %u" % this.board_rev)
+            console.log("  board_type: %u" % this.board_type)
+        console.log("  board_rev: %u" % this.board_rev)
 
-        print("Identification complete")
+        console.log("Identification complete")
     }
     
     board_name_for_board_id( board_id){
@@ -899,7 +931,7 @@ class uploader{
                 return None
             return " or ".join(ret)
         }catch (e){
-            print("Failed to get name: %s" % str(e))
+            console.log("Failed to get name: %s" % str(e))
         }
         return None
     }
@@ -916,7 +948,7 @@ class uploader{
                 if (comp_fw_id == fw.property('board_id')){
                     msg = "Target %s (board_id: %d) is compatible with firmware for board_id=%u)" % (
                         board_name, this.board_type, fw.property('board_id'))
-                    print("INFO: %s" % msg)
+                    console.log("INFO: %s" % msg)
                     incomp = False
                 }
             }
@@ -926,10 +958,10 @@ class uploader{
                     this.board_name_for_board_id(this.board_type),
                     fw.property('board_id'),
                     this.board_name_for_board_id(fw.property('board_id')))
-                print("WARNING: %s" % msg)
+                console.log("WARNING: %s" % msg)
                 
                 if (force)
-                    print("FORCED WRITE, FLASHING ANYWAY!")
+                    console.log("FORCED WRITE, FLASHING ANYWAY!")
                 else
                     throw IOError(msg)
             }
@@ -940,7 +972,7 @@ class uploader{
             throw new Error("Firmware image is too large for this board")
 
         if (this.baudrate_bootloader_flash != this.baudrate_bootloader){
-            print("Setting baudrate to %u" % this.baudrate_bootloader_flash)
+            console.log("Setting baudrate to %u" % this.baudrate_bootloader_flash)
             this.__setbaud(this.baudrate_bootloader_flash)
             this.port.baudrate = this.baudrate_bootloader_flash
             this.__sync()
@@ -956,7 +988,7 @@ class uploader{
         if (boot_delay != None)
             this.__set_boot_delay(boot_delay)
 
-        print("\nRebooting.\n")
+        console.log("\nRebooting.\n")
         this.__reboot()
         this.port.close()
     }
@@ -978,8 +1010,8 @@ class uploader{
         if (! this.__next_baud_flightstack())
             return False
 
-        print("Attempting reboot on %s with baudrate=%d..." % (this.port.port, this.port.baudrate), file=sys.stderr)
-        print("If the board does not respond, unplug and re-plug the USB connector.", file=sys.stderr)
+        console.log("Attempting reboot on %s with baudrate=%d..." % (this.port.port, this.port.baudrate), file=sys.stderr)
+        console.log("If the board does not respond, unplug and re-plug the USB connector.", file=sys.stderr)
 
         try{
             // try MAVLINK command first
@@ -1009,7 +1041,7 @@ class uploader{
     // upload the firmware
     download( fw){
         if (this.baudrate_bootloader_flash != this.baudrate_bootloader){
-            print("Setting baudrate to %u" % this.baudrate_bootloader_flash)
+            console.log("Setting baudrate to %u" % this.baudrate_bootloader_flash)
             this.__setbaud(this.baudrate_bootloader_flash)
             this.port.baudrate = this.baudrate_bootloader_flash
             this.__sync()
@@ -1018,27 +1050,24 @@ class uploader{
         this.port.close()
     }
 
-    // use it as "await sleep(250);"  // ms
-    async sleep(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
-    }
 
     // open, identify,reboot,sleep,close, repeat till ..
     async find_bootloader(){
         while (True){
-            this.open()
+            this.open() // blocking on it being open....
 
             // port is open, try talking to it
         // try{
                 //# identify the bootloader
-                this.identify()
-                print("Found board %x,%x bootloader rev %x on %s" % (this.board_type, this.board_rev, this.bl_rev, this.port))
+            if (this.identify()) {
+                console.log('Found board %s,%s bootloader rev %s on %s' , this.board_type, this.board_rev, this.bl_rev, this.port);
                 return True
+            }
 
             //}//except (Exception) {
             //     //pass
             // }
-            reboot_sent = this.send_reboot()
+            var reboot_sent = this.send_reboot()
 
             //# wait for the reboot, without we might run into Serial I/O Error 5
             //time.sleep(0.25)
@@ -1051,8 +1080,10 @@ class uploader{
             //time.sleep(0.3)
             await sleep(300);//ms
 
-            if (! reboot_sent)
-                return False
+            //if (! reboot_sent)
+            //    return False
+
+            console.log("find_bootloader...",this.port);
         }
     }
 //---------

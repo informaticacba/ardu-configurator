@@ -122,6 +122,7 @@ sources.Js = [
     './js/mavsp.js', //buzz
     './js/protocols/stm32.js',
     './js/protocols/stm32usbdfu.js',
+    './js/protocols/px4.js', // kinda ripped off from stm32.js
     './js/localization.js',
     './js/boards.js',
     './js/servoMixerRuleCollection.js',

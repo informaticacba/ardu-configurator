@@ -401,7 +401,8 @@ TABS.firmware_flasher.initialize = function (callback) {
                                 // buzz todo, integrate ardu bootloader based on vid /pid detect?
 
 
-                                STM32.connect(port, baud, parsed_hex, options);
+                                //STM32.connect(port, baud, parsed_hex, options);
+                                PX4.connect(port, baud, parsed_hex, options);
                             } else {
                                 console.log('Please select valid serial port');
                                 GUI.log('<span style="color: red">Please select valid serial port</span>');
