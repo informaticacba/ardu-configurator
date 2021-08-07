@@ -86,6 +86,40 @@ var PX4_protocol = function () {
     this.available_flash_size = 0;
     this.page_size = 0;
     this.useExtendedErase = false;
+
+    this.board_ids = {
+        CubeOrange_joey : 1033,     CubeOrange_joey_bl : 1033,         KakuteF7Mini : 145,         KakuteF7Mini_bl : 145,         skyviper_f412_rev1 : 9,
+        HitecMosaic : 1016,         HitecMosaic_bl : 1016,         revo_mini_i2c : 124,             revo_mini_i2c_bl : 124,         SuccexF4 : 1011,
+        SuccexF4_bl : 1011,         MatekH743_periph : 1013,         G4_ESC : 1027,                 G4_ESC_bl : 1027,               OmnibusNanoV6 : 133,
+        OmnibusNanoV6_bl : 133,     CUAV_GPS : 1001,                CUAV_GPS_bl : 1001,                QioTekZealotF427 : 1021,        QioTekZealotF427_bl : 1021,
+        FreeflyRTK : 1028,          FreeflyRTK_bl : 1028,         CubeBlack_periph : 1401,          CubeBlack_periph_bl : 1401,        mRoNexus : 1015,
+        mRoNexus_bl : 1015,         crazyflie2 : 12,                crazyflie2_bl : 12,             mRoControlZeroOEMH7 : 1024,        mRoControlZeroOEMH7_bl : 1024,
+        KakuteF4 : 122,              KakuteF4_bl : 122,              speedybeef4 : 134,             speedybeef4_bl : 134,           mRoControlZeroF7 : 141,
+        mRoControlZeroF7_bl : 141,  mRoControlZeroClassic : 1022,  mRoControlZeroClassic_bl : 1022, KakuteF7 : 123,                 KakuteF7_bl : 123,
+        F4BY : 20,                  F4BY_bl : 20,                   fmuv5 : 50,   fmuv5_bl : 50,    NucleoH743 : 139,               NucleoH743_bl : 139,
+        TBS_Colibri_F7_bl : 50,         F35Lightning : 135,         F35Lightning_bl : 135,         fmuv3_bdshot : 9,                f405_MatekGPS : 1014,
+        f405_MatekGPS_bl : 1014,     VRCore_v10 : 1910,             VRCore_v10_bl : 1910,         CubeOrange : 140,                 CubeOrange_bl : 140,
+        f303_MatekGPS : 1004,        f303_MatekGPS_bl : 1004,         R9Pilot : 1008,               R9Pilot_bl : 1008,              omnibusf4pro : 131,
+        omnibusf4pro_bl : 131,       fmuv3 : 9,                     fmuv3_bl : 9,                   mRoPixracerPro : 1017,         mRoPixracerPro_bl : 1017,
+        CubeBlack_plus : 1003,       CubeBlack_plus_bl : 1003,         iomcu : 3,                   MazzyStarDrone : 188,             MazzyStarDrone_bl : 188,
+        CubeOrange_periph : 1400,    CubeOrange_periph_bl : 1400,   OMNIBUSF7V2_bdshot : 121,         MambaF405v2 : 1019,         MambaF405v2_bl : 1019,
+        MatekF405_Wing : 127,         MatekF405_Wing_bl : 127,         OMNIBUSF7V2 : 121,           OMNIBUSF7V2_bl : 121,         VRUBrain_v51 : 1351,
+        VRUBrain_v51_bl : 1351,     HerePro : 1037,                 HerePro_bl : 1037,              MatekF405_CAN : 1014,         MatekF405_CAN_bl : 1014,
+        CubeYellow : 120,           CubeYellow_bl : 120,            f303_periphhwdef_bl:1004,         f303_periphhwdef:1004,         MatekH743 : 1013,
+        MatekH743_bl : 1013,         Pixracer_periph : 1402,         Pixracer_periph_bl : 1402,      MatekF405 : 125,                MatekF405_bl : 125,
+        KakuteF4Mini : 1030,         KakuteF4Mini_bl : 1030,         revo_mini : 124,               revo_mini_bl : 124,         luminousbee4 : 11,
+        MatekF765_Wing : 143,        MatekF765_Wing_bl : 143,         airbotf4 : 128,               airbotf4_bl : 128,         HolybroGPS : 1035,
+        HolybroGPS_bl : 1035,        omnibusf4v6 : 137,             omnibusf4v6_bl : 137,           fmuv5_bdshot : 50,         FlywooF745 : 1027,
+        FlywooF745_bl : 1027,       f103_periphhwdef_bl:1000,         f103_periphhwdef:1000,         BeastF7 : 1026,            BeastF7_bl : 1026,
+        VRBrain_v54 : 1154,         VRBrain_v54_bl : 1154,          VRBrain_v51 : 1151,             VRBrain_v51_bl : 1151,         CUAV_X7 : 1010,
+        CUAV_X7_bl : 1010,          sparky2 : 130,                  sparky2_bl : 130,               omnibusf4 : 1002,         omnibusf4_bl : 1002,
+        mRoControlZeroH7 : 1023,    mRoControlZeroH7_bl : 1023,         Durandal : 139,             Durandal_bl : 139,         ZubaxGNSS : 1005,
+        ZubaxGNSS_bl : 1005,        skyviper_journey : 9,           BeastH7 : 1025,                 BeastH7_bl : 1025,         mRoX21_777 : 136,
+        mRoX21_777_bl : 136,        mindpx_v2 : 88,                 mindpx_v2_bl : 88,              DrotekP3Pro : 13,         DrotekP3Pro_bl : 13,
+        MambaF405US_I2C : 1038,     MambaF405US_I2C_bl : 1038,         CUAV_Nora : 1009,            CUAV_Nora_bl : 1009,         CUAVv5Nano_bl : 50,
+        mini_pix : 3,               mini_pix_bl : 3,                Pixracer : 11,                  Pixracer_bl : 11,         H757I_EVAL : 146,      
+        H757I_EVAL_bl : 146,        VRBrain_v52 : 1152,             VRBrain_v52_bl : 1152,          luminousbee5 : 1029,        luminousbee5_bl : 1029
+    };
 };
 
 // no input parameters
