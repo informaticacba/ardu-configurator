@@ -10,8 +10,8 @@ TABS.firmware_flasher.initialize = function (callback) {
     }
 
 
-    var intel_hex = false, // standard intel hex in string format
-        parsed_hex = false; // parsed raw hex in array format
+    var intel_hex = false; // standard intel hex in string format
+    var parsed_hex = false; // parsed raw hex in array format
 
     GUI.load("./tabs/firmware_flasher.html", function () {
         // translate to user-selected language
@@ -250,14 +250,20 @@ TABS.firmware_flasher.initialize = function (callback) {
                 return;
             }
 
-            function process_hex(data, summary) {
+            function process_hex(data, summary) { // data = .get from summary.url
                 intel_hex = data;
 
-                parse_hex(intel_hex, function (data) {
-                    parsed_hex = data;
+                // process_hex outsources most of this to parse_hex ( which is in a worker), but afterwards triggers an event/callback... 
 
-                    if (parsed_hex) {
+                parse_hex(intel_hex, function (data) {
+                    parsed_hex = data;  // come from hex_parser.js -> result{} object 
+
+                    console.log("process_hex/parse_hex completed...")
+
+                    if (parsed_hex) { //TABS.firmware_flasher.parsed_hex
                         var url;
+
+                        console.log(" parsed_hex = true =>"+ parsed_hex.bytes_total+' bytes')
 
                         googleAnalytics.sendEvent('Flashing', 'Firmware', 'online');
                         $('span.progressLabel').html('<a class="save_firmware" href="#" title="Save Firmware">Loaded Online Firmware: (' + parsed_hex.bytes_total + ' bytes)</a>');
@@ -323,6 +329,7 @@ TABS.firmware_flasher.initialize = function (callback) {
             var summary = $('select[name="firmware_version"] option:selected').data('summary');
             if (summary) { // undefined while list is loading or while running offline
                 $(".load_remote_file").text(chrome.i18n.getMessage('firmwareFlasherButtonLoading')).addClass('disabled');
+                console.log("getting firmware from url:",summary.url);
                 $.get(summary.url, function (data) {
                     enable_load_online_button();
                     process_hex(data, summary);
@@ -519,7 +526,7 @@ TABS.firmware_flasher.initialize = function (callback) {
             if (result.flash_on_connect) {
                 $('input.flash_on_connect').prop('checked', true);
             } else {
-                $('input.flash_on_connect').prop('checked', false);
+                $('input.flash_on_connect').prop('checked', true); //false buzz hack to force it on  "flash_on_connect" works to get us into BL, "Flash firmware" button doesn't.
             }
 
             $('input.flash_on_connect').change(function () {
