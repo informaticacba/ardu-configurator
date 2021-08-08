@@ -88,7 +88,7 @@ var PX4_protocol = function () {
     this.useExtendedErase = false;
 
     this.board_ids = {
-        CubeOrange_joey : 1033,     CubeOrange_joey_bl : 1033,         KakuteF7Mini : 145,         KakuteF7Mini_bl : 145,         skyviper_f412_rev1 : 9,
+        CubeOrange_joey : 1033,     CubeOrange_joey_bl : 1033,         KakuteF7Mini : 145,         KakuteF7Mini_bl : 145,       fmuv2 : 9,  skyviper_f412_rev1 : 9,
         HitecMosaic : 1016,         HitecMosaic_bl : 1016,         revo_mini_i2c : 124,             revo_mini_i2c_bl : 124,         SuccexF4 : 1011,
         SuccexF4_bl : 1011,         MatekH743_periph : 1013,         G4_ESC : 1027,                 G4_ESC_bl : 1027,               OmnibusNanoV6 : 133,
         OmnibusNanoV6_bl : 133,     CUAV_GPS : 1001,                CUAV_GPS_bl : 1001,                QioTekZealotF427 : 1021,        QioTekZealotF427_bl : 1021,
@@ -121,6 +121,11 @@ var PX4_protocol = function () {
         H757I_EVAL_bl : 146,        VRBrain_v52 : 1152,             VRBrain_v52_bl : 1152,          luminousbee5 : 1029,        luminousbee5_bl : 1029
     };
 };
+
+
+function getKeyByValue(object, value) {
+    return Object.keys(object).find(key => object[key] === value);
+}
 
 // no input parameters
 PX4_protocol.prototype.connect = function (port, baud, hex, options, callback) {
@@ -379,84 +384,6 @@ PX4_protocol.prototype.verify_response = function (val, data) {
     return true;
 };
 
-// // input = 16 bit value
-// // result = true/false
-// PX4_protocol.prototype.verify_chip_signature = function (signature) {
-//     switch (signature) {
-//         case 0x412: // not tested
-//             console.log('Chip recognized as F1 Low-density');
-//             break;
-//         case 0x410:
-//             console.log('Chip recognized as F1 Medium-density');
-//             this.available_flash_size = 131072;
-//             this.page_size = 1024;
-//             break;
-//         case 0x414: // not tested
-//             console.log('Chip recognized as F1 High-density');
-//             this.available_flash_size =  0x40000;
-//             this.page_size = 2048;
-//             break;
-//         case 0x418: // not tested
-//             console.log('Chip recognized as F1 Connectivity line');
-//             break;
-//         case 0x420:  // not tested
-//             console.log('Chip recognized as F1 Medium-density value line');
-//             break;
-//         case 0x428: // not tested
-//             console.log('Chip recognized as F1 High-density value line');
-//             break;
-//         case 0x430: // not tested
-//             console.log('Chip recognized as F1 XL-density value line');
-//             break;
-//         case 0x416: // not tested
-//             console.log('Chip recognized as L1 Medium-density ultralow power');
-//             break;
-//         case 0x436: // not tested
-//             console.log('Chip recognized as L1 High-density ultralow power');
-//             break;
-//         case 0x427: // not tested
-//             console.log('Chip recognized as L1 Medium-density plus ultralow power');
-//             break;
-//         case 0x411: // not tested
-//             console.log('Chip recognized as F2 PX4F2xxxx');
-//             break;
-//         case 0x440: // not tested
-//             console.log('Chip recognized as F0 PX4F051xx');
-//             break;
-//         case 0x444: // not tested
-//             console.log('Chip recognized as F0 PX4F050xx');
-//             break;
-//         case 0x413: // not tested
-//             console.log('Chip recognized as F4 PX4F40xxx/41xxx');
-//             break;
-//         case 0x419: // not tested
-//             console.log('Chip recognized as F4 PX4F427xx/437xx, PX4F429xx/439xx');
-//             break;
-//         case 0x432: // not tested
-//             console.log('Chip recognized as F3 PX4F37xxx, PX4F38xxx');
-//             break;
-//         case 0x422:
-//             console.log('Chip recognized as F3 PX4F30xxx, PX4F31xxx');
-//             this.available_flash_size =  0x40000;
-//             this.page_size = 2048;
-//             break;
-//     }
-
-//     if (this.available_flash_size > 0) {
-//         if (this.hex.bytes_total < this.available_flash_size) {
-//             return true;
-//         } else {
-//             console.log('Supplied hex is bigger then flash available on the chip, HEX: ' + this.hex.bytes_total + ' bytes, limit = ' + this.available_flash_size + ' bytes');
-
-//             return false;
-//         }
-//     }
-
-//     console.log('Chip NOT recognized: ' + signature);
-
-//     return false;
-// };
-
 // first_array = usually hex_to_flash array
 // second_array = usually verify_hex array
 // result = true/false
@@ -626,11 +553,18 @@ PX4_protocol.prototype.upload_procedure = function (step) {
                 }
 
                 // this.board_ids todo
+                var board_id = val[0];
+                var board_name = getKeyByValue(self.board_ids,board_id);
+
+                //if (self.board_ids.entries().includes(board_id)) {
+                if (board_name) {
+                    console.log(board_name+" detected with ID="+board_id);
+                }
 
                 // // see APJ_BOARD_ID in sources, and hwdef.dat file/s
-                if ( val[0] == 9) {  /// pixhawk1 
-                    console.log("pixhawk 1 detected with ID=9");
-                }
+                // if ( val[0] == 9) {  /// pixhawk1 
+                //     console.log("pixhawk 1 detected with ID=9");
+                // }
                 // if ( val[0] == 139) {  /// pixhawk1 
                 //     console.log("H743 style Board detected with ID=139");
                 // }
@@ -758,8 +692,15 @@ PX4_protocol.prototype.upload_procedure = function (step) {
 
                 //var _data = [1,2,3,4,5];
                 // we send PROG_MULTI, then 'length' of block to expect, then actual data block, then EOC
-                var pkt = [self.command.PROG_MULTI, multi_len, _data , self.command.EOC].flat(); //causes _data to be expanded in-line
-                self.send(pkt, 2, function (reply) { // response should be INSYNC and oK
+                //var pkt = [self.command.PROG_MULTI, multi_len, _data , self.command.EOC].flat(); //causes _data to be expanded in-line
+
+                var tmppkt = new Uint8Array(_data.byteLength + 3);
+                tmppkt.set([self.command.PROG_MULTI, multi_len],0);
+                tmppkt.set(new Uint8Array(_data),2);
+                tmppkt.set([self.command.EOC],_data.byteLength +2);
+                
+
+                self.send(tmppkt, 2, function (reply) { // response should be INSYNC and oK
 
                     if (reply.length != 2 ) { 
                         console.log("weird chip response, not right length");
@@ -782,28 +723,30 @@ PX4_protocol.prototype.upload_procedure = function (step) {
                 });
             }
 
+
+
             // split self.hex into chunks no bigger than we can handle
             var i,j, temporary, chunk = self.command.PROG_MULTI_MAX;
-            for (i = 0,j = self.hex.data.length; i < j; i += chunk) {
+            for (i = 0,j = self.hex.data.byteLength; i < j; i += chunk) {
                 temporary = self.hex.data.slice(i, i + chunk);
                 // do whatever
                 program_multi(temporary);
             }
 
-            self.upload_procedure(5);
+            self.upload_procedure(6);
 
             break;
 
-        case 5:
-            // upload
-            console.log('Writing data ...');
-            $('span.progressLabel').text('Flashing ...');
+        // case 5:
+        //     // upload
+        //     console.log('Writing data ...');
+        //     $('span.progressLabel').text('Flashing ...');
 
-            var blocks = self.hex.data.length - 1,
-                flashing_block = 0,
-                address = self.hex.data[flashing_block].address,
-                bytes_flashed = 0,
-                bytes_flashed_total = 0; // used for progress bar
+        //     var blocks = self.hex.data.length - 1,
+        //         flashing_block = 0,
+        //         address = self.hex.data[flashing_block].address,
+        //         bytes_flashed = 0,
+        //         bytes_flashed_total = 0; // used for progress bar
 
             // var write = function () {
             //     if (bytes_flashed < self.hex.data[flashing_block].bytes) {
@@ -870,128 +813,179 @@ PX4_protocol.prototype.upload_procedure = function (step) {
             // start writing
             //write();
 
-            self.upload_procedure(6);
-            break;
+            // self.upload_procedure(6);
+            // break;
+
         case 6:
             // verify
             console.log('Verifying data ...');
             $('span.progressLabel').text('Verifying ...');
 
-            var blocks = self.hex.data.length - 1,
-                reading_block = 0,
-                address = self.hex.data[reading_block].address,
-                bytes_verified = 0,
-                bytes_verified_total = 0; // used for progress bar
+           // console.log('Writing data ...');
 
-            // initialize arrays
-            for (var i = 0; i <= blocks; i++) {
-                self.verify_hex.push([]);
-            }
+            var verify_multi = function () {  //_data should be a block of no longer than PROG_MULTI_MAX
 
-            var reading = function () {
-                if (bytes_verified < self.hex.data[reading_block].bytes) {
-                    var bytes_to_read = ((bytes_verified + 256) <= self.hex.data[reading_block].bytes) ? 256 : (self.hex.data[reading_block].bytes - bytes_verified);
+                // a prog_multi sends a variable amount of data, but defines how much its sending in advance, and expects INSYNC and OK at the end
+                //var multi_len = self.command.PROG_MULTI_MAX; // assume this, but it may be less.
 
-                    // console.log('PX4 - Reading from: 0x' + address.toString(16) + ', ' + bytes_to_read + ' bytes');
+                //var _data = [1,2,3,4,5];
+                // we send GET_CRC,  then EOC, and expect 4 bytes ( as an int) CRC reply AND THEN also INSYNC and OK ( 6 bytes total)
+                self.send([self.command.GET_CRC , self.command.EOC], 4, function (reply) { // response should be INSYNC and oK
 
-                    self.send([self.command.read_memory, 0xEE], 1, function (reply) { // 0x11 ^ 0xFF
-                        if (self.verify_response(self.status.ACK, reply)) {
-                            var address_arr = [(address >> 24), (address >> 16), (address >> 8), address];
-                            var address_checksum = address_arr[0] ^ address_arr[1] ^ address_arr[2] ^ address_arr[3];
-
-                            self.send([address_arr[0], address_arr[1], address_arr[2], address_arr[3], address_checksum], 1, function (reply) { // read start address + checksum
-                                if (self.verify_response(self.status.ACK, reply)) {
-                                    var bytes_to_read_n = bytes_to_read - 1;
-
-                                    self.send([bytes_to_read_n, (~bytes_to_read_n) & 0xFF], 1, function (reply) { // bytes to be read + checksum XOR(complement of bytes_to_read_n)
-                                        if (self.verify_response(self.status.ACK, reply)) {
-                                            self.retrieve(bytes_to_read, function (data) {
-                                                for (var i = 0; i < data.length; i++) {
-                                                    self.verify_hex[reading_block].push(data[i]);
-                                                }
-
-                                                address += bytes_to_read;
-                                                bytes_verified += bytes_to_read;
-                                                bytes_verified_total += bytes_to_read;
-
-                                                // verify another page
-                                                reading();
-                                            });
-                                        }
-                                    });
-
-                                    // update progress bar
-                                    self.progress_bar_e.val(Math.round((self.hex.bytes_total + bytes_verified_total) / (self.hex.bytes_total * 2) * 100));
-                                }
-                            });
-                        }
-                    });
-                } else {
-                    // move to another block
-                    if (reading_block < blocks) {
-                        reading_block++;
-
-                        address = self.hex.data[reading_block].address;
-                        bytes_verified = 0;
-
-                        reading();
-                    } else {
-                        // all blocks read, verify
-
-                        var verify = true;
-                        for (var i = 0; i <= blocks; i++) {
-                            verify = self.verify_flash(self.hex.data[i].data, self.verify_hex[i]);
-
-                            if (!verify) break;
-                        }
-
-                        if (verify) {
-                            console.log('Programming: SUCCESSFUL');
-                            $('span.progressLabel').text('Programming: SUCCESSFUL');
-                            googleAnalytics.sendEvent('Flashing', 'Programming', 'success');
-
-                            // update progress bar
-                            self.progress_bar_e.addClass('valid');
-
-                            // proceed to next step
-                            self.upload_procedure(7);
-                        } else {
-                            console.log('Programming: FAILED');
-                            $('span.progressLabel').text('Programming: FAILED');
-                            googleAnalytics.sendEvent('Flashing', 'Programming', 'fail');
-
-                            // update progress bar
-                            self.progress_bar_e.addClass('invalid');
-
-                            // disconnect
-                            self.upload_procedure(99);
-                        }
+                    if (reply.length != 4 ) { 
+                        console.log("verify,weird chip response, not right length");
                     }
-                }
-            }
 
-            // start reading
-            reading();
+                    var val = jspack.Unpack("<I", reply); // just slice bytes at offsets: 0,1,2,3
+                    if ( val == undefined) return;
+
+                    var crc_val = val[0];
+                    
+                    console.log("GET_CRC",crc_val);
+                    console.log("Verifying",reply);
+
+                    // var insync = reply[4]; // after 4byte crc as Int
+                    // var ok = reply[5];     // 
+
+                    // if (( insync == self.command.INSYNC) && ( ok == self.command.OK)) {
+                    //     console.log('Verify multi: done');
+                    //     // proceed to next step
+                    //     //self.upload_procedure(5);
+                    // } else {
+                    //     // failed
+                    //     self.upload_procedure(99);
+                    // }
+
+                });
+            }
+   
+            verify_multi();
+            
+
+            self.upload_procedure(7);
+
+            break;
+
+            // var blocks = self.hex.data.length - 1,
+            //     reading_block = 0,
+            //     address = self.hex.data[reading_block].address,
+            //     bytes_verified = 0,
+            //     bytes_verified_total = 0; // used for progress bar
+
+            // // initialize arrays
+            // for (var i = 0; i <= blocks; i++) {
+            //     self.verify_hex.push([]);
+            // }
+
+            // var reading = function () {
+            //     if (bytes_verified < self.hex.data[reading_block].bytes) {
+            //         var bytes_to_read = ((bytes_verified + 256) <= self.hex.data[reading_block].bytes) ? 256 : (self.hex.data[reading_block].bytes - bytes_verified);
+
+            //         // console.log('PX4 - Reading from: 0x' + address.toString(16) + ', ' + bytes_to_read + ' bytes');
+
+            //         self.send([self.command.read_memory, 0xEE], 1, function (reply) { // 0x11 ^ 0xFF
+            //             if (self.verify_response(self.status.ACK, reply)) {
+            //                 var address_arr = [(address >> 24), (address >> 16), (address >> 8), address];
+            //                 var address_checksum = address_arr[0] ^ address_arr[1] ^ address_arr[2] ^ address_arr[3];
+
+            //                 self.send([address_arr[0], address_arr[1], address_arr[2], address_arr[3], address_checksum], 1, function (reply) { // read start address + checksum
+            //                     if (self.verify_response(self.status.ACK, reply)) {
+            //                         var bytes_to_read_n = bytes_to_read - 1;
+
+            //                         self.send([bytes_to_read_n, (~bytes_to_read_n) & 0xFF], 1, function (reply) { // bytes to be read + checksum XOR(complement of bytes_to_read_n)
+            //                             if (self.verify_response(self.status.ACK, reply)) {
+            //                                 self.retrieve(bytes_to_read, function (data) {
+            //                                     for (var i = 0; i < data.length; i++) {
+            //                                         self.verify_hex[reading_block].push(data[i]);
+            //                                     }
+
+            //                                     address += bytes_to_read;
+            //                                     bytes_verified += bytes_to_read;
+            //                                     bytes_verified_total += bytes_to_read;
+
+            //                                     // verify another page
+            //                                     reading();
+            //                                 });
+            //                             }
+            //                         });
+
+            //                         // update progress bar
+            //                         self.progress_bar_e.val(Math.round((self.hex.bytes_total + bytes_verified_total) / (self.hex.bytes_total * 2) * 100));
+            //                     }
+            //                 });
+            //             }
+            //         });
+            //     } else {
+            //         // move to another block
+            //         if (reading_block < blocks) {
+            //             reading_block++;
+
+            //             address = self.hex.data[reading_block].address;
+            //             bytes_verified = 0;
+
+            //             reading();
+            //         } else {
+            //             // all blocks read, verify
+
+            //             var verify = true;
+            //             for (var i = 0; i <= blocks; i++) {
+            //                 verify = self.verify_flash(self.hex.data[i].data, self.verify_hex[i]);
+
+            //                 if (!verify) break;
+            //             }
+
+            //             if (verify) {
+            //                 console.log('Programming: SUCCESSFUL');
+            //                 $('span.progressLabel').text('Programming: SUCCESSFUL');
+            //                 googleAnalytics.sendEvent('Flashing', 'Programming', 'success');
+
+            //                 // update progress bar
+            //                 self.progress_bar_e.addClass('valid');
+
+            //                 // proceed to next step
+            //                 self.upload_procedure(7);
+            //             } else {
+            //                 console.log('Programming: FAILED');
+            //                 $('span.progressLabel').text('Programming: FAILED');
+            //                 googleAnalytics.sendEvent('Flashing', 'Programming', 'fail');
+
+            //                 // update progress bar
+            //                 self.progress_bar_e.addClass('invalid');
+
+            //                 // disconnect
+            //                 self.upload_procedure(99);
+            //             }
+            //         }
+            //     }
+            // }
+
+            // // start reading
+            // reading();
+
             break;
         case 7:
             // go
             // memory address = 4 bytes, 1st high byte, 4th low byte, 5th byte = checksum XOR(byte 1, byte 2, byte 3, byte 4)
-            console.log('Sending GO command: 0x8000000');
+            console.log('Sending reBoOT command.');
 
-            self.send([self.command.go, 0xDE], 1, function (reply) { // 0x21 ^ 0xFF
-                if (self.verify_response(self.status.ACK, reply)) {
-                    var gt_address = 0x8000000,
-                        address = [(gt_address >> 24), (gt_address >> 16), (gt_address >> 8), gt_address],
-                        address_checksum = address[0] ^ address[1] ^ address[2] ^ address[3];
+            self.send([self.command.REBOOT, self.command.EOC], 0, function (reply) { // 0x21 ^ 0xFF
+                // if (self.verify_response(self.status.ACK, reply)) {
+                //     var gt_address = 0x8000000,
+                //         address = [(gt_address >> 24), (gt_address >> 16), (gt_address >> 8), gt_address],
+                //         address_checksum = address[0] ^ address[1] ^ address[2] ^ address[3];
 
-                    self.send([address[0], address[1], address[2], address[3], address_checksum], 1, function (reply) {
-                        if (self.verify_response(self.status.ACK, reply)) {
-                            // disconnect
-                            self.upload_procedure(99);
-                        }
-                    });
-                }
+                //     self.send([address[0], address[1], address[2], address[3], address_checksum], 1, function (reply) {
+                //         if (self.verify_response(self.status.ACK, reply)) {
+                //             // disconnect
+                //             self.upload_procedure(99);
+                //         }
+                //     });
+                // }
+                console.log("sent ok");
+
             });
+
+            self.upload_procedure(99);
             break;
         case 99:
             // disconnect

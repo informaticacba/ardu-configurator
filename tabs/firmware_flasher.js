@@ -87,8 +87,12 @@ TABS.firmware_flasher.initialize = function (callback) {
                     //      return; // buzz todo. for now we use only firmwares that are _bl.hex files that can be flashed with dfu
                     //  }
 
-                     if (! release.url.endsWith('_with_bl.hex')) { 
-                        return; // buzz todo. for now we use only firmwares that are _bl.hex files that can be flashed with dfu
+                    // buzz todo - this file type is great for flashing with DFU, but we aren't doing that here..
+                    // if (! release.url.endsWith('_with_bl.hex')) { 
+                    //    return; // buzz todo. for now we use only firmwares that are _bl.hex files that can be flashed with dfu
+                    //}
+                    if (! release.url.endsWith('.apj')) { 
+                        return; // buzz todo. for now we use only firmwares that are .apj files that can be flashed with bootloader
                     }
 
                     // var date = new Date("2001-01-01"); // buzz hack, no date data in ardu json
@@ -195,7 +199,7 @@ TABS.firmware_flasher.initialize = function (callback) {
         $('a.load_file').on('click', function () {
 
             nwdialog.setContext(document);
-            nwdialog.openFileDialog('.hex', function(filename) {
+            nwdialog.openFileDialog('.apj', function(filename) { // buzz todo was .hex, not tested
                 const fs = require('fs');
                 
                 $('div.git_info').slideUp();
@@ -326,13 +330,90 @@ TABS.firmware_flasher.initialize = function (callback) {
                 enable_load_online_button();
             }
 
+            function process_apj(data, summary) { // an apj is really a json file
+
+                // parse json, get bin blob out
+                var j = JSON.parse(data);
+
+                var binblob = j.image; // this is still base64 encoded
+                j.image = '';// remove it from json b4 display as its huge
+                console.log(j)// thte remainder of the json
+
+                
+                //self.hex = atob(binblob); // remove base64 encoding; 
+
+                // at this point self.hex is a "string"
+
+                function _base64ToArrayBuffer(base64) {
+                    var binary_string = window.atob(base64);
+                    var len = binary_string.length;
+                    var bytes = new Uint8Array(len);
+                    for (var i = 0; i < len; i++) {
+                        bytes[i] = binary_string.charCodeAt(i);
+                    }
+                    return bytes.buffer;
+                }
+
+                self.hex = _base64ToArrayBuffer(binblob);
+
+                // at this point self.hex is a real Uint8Array()
+
+                /*
+                {board_id: 9,
+                USBID: "0x1209/0x5741"
+                board_id: 9
+                board_revision: 0
+                description: "Firmware for a STM32F427xx board"
+                git_identity: "0bb18a15"
+                image: "xxxxxxx"
+                image_size: 1009552
+                magic: "APJFWv1"
+                summary: "Pixhawk1-1M"
+                version: "0.1"
+                }
+                */
+
+                // for compat, shove a few things into parsed_hex  ( its the result format that hex_parser.js uses, but we don't use that parser here.
+                parsed_hex ={
+                    'bytes_total' : self.hex.length, 
+                    'data' : self.hex,
+                };
+
+                // todo basic check:
+                //if ( j.board_id != xxxx )
+
+                $('span.progressLabel').html('<a class="save_firmware" href="#" title="Save Firmware">Loaded Online Firmware: (' + parsed_hex.bytes_total + ' bytes)</a>');
+
+                $('a.flash_firmware').removeClass('disabled');
+
+                $('div.release_info .target').text(summary.target);
+                $('div.release_info .status').html(chrome.i18n.getMessage('firmwareFlasherReleaseStatusReleaseCandidate')).show();
+                $('div.release_info .name').text(summary.name).prop('href', summary.releaseUrl);
+                $('div.release_info .date').text(summary.date);
+                $('div.release_info .status').text(summary.status);
+                $('div.release_info .file').text(summary.file).prop('href', summary.url);
+
+                var formattedNotes = marked(summary.notes);
+                $('div.release_info .notes').html(formattedNotes);
+                // Make links in the release notes open in a new window
+                $('div.release_info .notes a').each(function () {
+                    $(this).attr('target', '_blank');
+                });
+
+                $('div.release_info').slideDown();
+
+                console.log(" parsed APJ = true =>"+ parsed_hex.bytes_total+' bytes')
+
+            }
+
             var summary = $('select[name="firmware_version"] option:selected').data('summary');
             if (summary) { // undefined while list is loading or while running offline
-                $(".load_remote_file").text(chrome.i18n.getMessage('firmwareFlasherButtonLoading')).addClass('disabled');
+                //$(".load_remote_file").text(chrome.i18n.getMessage('firmwareFlasherButtonLoading')).addClass('disabled');
                 console.log("getting firmware from url:",summary.url);
                 $.get(summary.url, function (data) {
                     enable_load_online_button();
-                    process_hex(data, summary);
+                    //process_hex(data, summary);
+                    process_apj(data, summary);
                 }).fail(failed_to_load);
             } else {
                 $('span.progressLabel').text(chrome.i18n.getMessage('firmwareFlasherFailedToLoadOnlineFirmware'));
@@ -475,6 +556,8 @@ TABS.firmware_flasher.initialize = function (callback) {
                 $('.flash_on_connect_wrapper').show();
             } else {
                 $('input.updating').prop('checked', false);
+                $('.flash_on_connect_wrapper').show();// buzz hack
+
             }
 
             // bind UI hook so the status is saved on change
