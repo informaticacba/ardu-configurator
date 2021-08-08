@@ -285,7 +285,7 @@ PX4_protocol.prototype.initialize = function () {
             // exit
             self.upload_procedure(99);
         }
-    }, 10000); // buzz todo was 2000
+    }, 30000); // buzz todo was 2000, needs to be at least 30s, as we need 20s just for erase
 
     
 
@@ -304,7 +304,7 @@ PX4_protocol.prototype.read = function (readInfo) {
        // return;
     }
 
-    //if (data.length > 0 )console.log('r',data.length,data);
+    if (data.length > 0 )console.log('READ-->',Array.from(data)); // display as Array as its simpler
 
     for (var i = 0; i < data.length; i++) {
         this.receive_buffer.push(data[i]);
@@ -341,6 +341,8 @@ PX4_protocol.prototype.retrieve = function (n_bytes, callback) {
 // bytes_to_read = received bytes necessary to trigger read_callback
 // callback = function that will be executed after received bytes = bytes_to_read
 PX4_protocol.prototype.send = function (Array, bytes_to_read, callback) {
+
+    self = this;
     // flip flag
     this.upload_process_alive = true;
 
@@ -352,7 +354,17 @@ PX4_protocol.prototype.send = function (Array, bytes_to_read, callback) {
 
     // update references
     this.bytes_to_read = bytes_to_read;
+
+    this.write_success = false;
     this.read_callback = callback;
+    this.read_callback2 = callback;
+
+    this.write_callback = function (writeInfo) {
+        // don't use 'this' in here
+        self.write_success = true;
+        self.read_callback = self.read_callback2;// read callback is only set after write has completed
+    };
+    
 
     // empty receive buffer before next command is out
     this.receive_buffer = [];
@@ -360,7 +372,8 @@ PX4_protocol.prototype.send = function (Array, bytes_to_read, callback) {
     console.log("SEND-->",Array); 
 
     // send over the actual data
-    serial.send(bufferOut, function (writeInfo) {});
+    serial.send(bufferOut, this.write_callback ); // we don't really care if/when its written
+
 };
 
 // val = single byte to be verified
@@ -416,7 +429,7 @@ PX4_protocol.prototype.upload_procedure = function (step) {
             var send_counter = 0;
             helper.interval.add('px4_initialize_mcu', function () { // 200 ms interval (just in case mcu was already initialized), we need to break the 2 bytes command requirement
                 self.send([self.command.GET_SYNC,self.command.EOC], 2, function (reply) { // 2 byte reply expected, INSYNC then OK
-                    console.log("RAW REPLY to GET_SYNC", reply )
+                    //console.log("RAW REPLY to GET_SYNC", reply )
 
                     if (reply[0] == self.command.INSYNC ) { // INSYNC = 0x12  or decimal 18
                         
@@ -477,7 +490,7 @@ PX4_protocol.prototype.upload_procedure = function (step) {
                 }
             }, 2000, true);
             break;
-        case 2: //get info INFO_BL_REV is a 3 byte send .. uploader.GET_DEVICE + INFO_BL_REV + uploader.EOC
+        case 2: //get info  is a 3 byte send .. uploader.GET_DEVICE + INFO_BL_REV + uploader.EOC
             // get version of the bootloader ,  withich is an 'int' ( 4 bytes )
             self.send([self.command.GET_DEVICE, self.command.INFO_BL_REV , self.command.EOC], 4, function (data) { 
 
@@ -658,26 +671,33 @@ PX4_protocol.prototype.upload_procedure = function (step) {
                         console.log("weird chip erase response, not right length");
                     }
 
-                    console.log(reply);
-
-                    //var val = jspack.Unpack("<I", reply);//struct.unpack("<I", data)  
-                    //if ( val == undefined) return;
-                    //return val[0]
-
                     var insync = reply[0];
                     var ok = reply[1];
 
                     if (( insync == self.command.INSYNC) && ( ok == self.command.OK)) {
                         console.log('Erasing: done');
                         // proceed to next step
-                        self.upload_procedure(49);
+                        //self.upload_procedure(49); don't go straight there, wait 20 sec and go from interval.
                     }
 
                     // failed
-                    self.upload_procedure(99);
+                    //self.upload_procedure(99);
 
                 });
+
+                helper.interval.add('erase_timeout', function () {
+
+                        console.log('PX4 erase timer hit... moving on ...');
+                        
+                        // protocol got stuck, clear timer and disconnect
+                        helper.interval.remove('erase_timeout');
+
+                        self.upload_procedure(49);
+
+                        //break;
+                }, 10000); 
             //} 
+
             break;
 
         // __program_multi  ?
@@ -685,7 +705,7 @@ PX4_protocol.prototype.upload_procedure = function (step) {
 
             console.log('Writing data ...');
 
-            var program_multi = function (_data) {  //_data should be a block of no longer than PROG_MULTI_MAX
+            var program_multi = async function (_data) {  //_data should be a block of no longer than PROG_MULTI_MAX
 
                 // a prog_multi sends a variable amount of data, but defines how much its sending in advance, and expects INSYNC and OK at the end
                 var multi_len = self.command.PROG_MULTI_MAX; // assume this, but it may be less.
@@ -699,122 +719,56 @@ PX4_protocol.prototype.upload_procedure = function (step) {
                 tmppkt.set(new Uint8Array(_data),2);
                 tmppkt.set([self.command.EOC],_data.byteLength +2);
                 
+                var a = Array.from(tmppkt); // convert Uint8Array -> Array
 
-                self.send(tmppkt, 2, function (reply) { // response should be INSYNC and oK
+                self.send(a, 2, function (reply) { // response should be INSYNC and oK
 
                     if (reply.length != 2 ) { 
                         console.log("weird chip response, not right length");
                     }
 
-                    console.log("writing",reply);
+                    //console.log("writing",reply);
 
                     var insync = reply[0];
                     var ok = reply[1];
 
                     if (( insync == self.command.INSYNC) && ( ok == self.command.OK)) {
-                        console.log('multi: done');
+                        //console.log('multi: progress');
                         // proceed to next step
                         //self.upload_procedure(5);
                     } else {
                         // failed
+                        console.log('multi: failed');
                         self.upload_procedure(99);
                     }
 
                 });
+
+                await sleep(10);//ms wait a bit for a response before moving on, or the next self.send() callback will overwrite this one b4 its executes
             }
 
+            var program_multi_main = async function () { 
 
-
-            // split self.hex into chunks no bigger than we can handle
-            var i,j, temporary, chunk = self.command.PROG_MULTI_MAX;
-            for (i = 0,j = self.hex.data.byteLength; i < j; i += chunk) {
-                temporary = self.hex.data.slice(i, i + chunk);
-                // do whatever
-                program_multi(temporary);
+                // split self.hex into chunks no bigger than we can handle
+                var i,j, temporary, chunk = self.command.PROG_MULTI_MAX;
+                for (i = 0,j = self.hex.data.byteLength; i < j; i += chunk) {
+                    temporary = self.hex.data.slice(i, i + chunk);
+                    // do whatever
+                    await program_multi(temporary);
+                }
+                
             }
 
-            self.upload_procedure(6);
+            var DOIT = async function () {
+                await program_multi_main();
+
+                self.upload_procedure(6);
+            }
+
+            DOIT();
 
             break;
 
-        // case 5:
-        //     // upload
-        //     console.log('Writing data ...');
-        //     $('span.progressLabel').text('Flashing ...');
-
-        //     var blocks = self.hex.data.length - 1,
-        //         flashing_block = 0,
-        //         address = self.hex.data[flashing_block].address,
-        //         bytes_flashed = 0,
-        //         bytes_flashed_total = 0; // used for progress bar
-
-            // var write = function () {
-            //     if (bytes_flashed < self.hex.data[flashing_block].bytes) {
-            //         var bytes_to_write = ((bytes_flashed + 256) <= self.hex.data[flashing_block].bytes) ? 256 : (self.hex.data[flashing_block].bytes - bytes_flashed);
-
-            //          console.log('PX4 - Writing to: 0x' + address.toString(16) + ', ' + bytes_to_write + ' bytes');
-
-            //         self.send([self.command.write_memory, 0xCE], 1, function (reply) { // 0x31 ^ 0xFF
-            //             if (self.verify_response(self.status.ACK, reply)) {
-            //                 // address needs to be transmitted as 32 bit integer, we need to bit shift each byte out and then calculate address checksum
-            //                 var address_arr = [(address >> 24), (address >> 16), (address >> 8), address];
-            //                 var address_checksum = address_arr[0] ^ address_arr[1] ^ address_arr[2] ^ address_arr[3];
-
-            //                 self.send([address_arr[0], address_arr[1], address_arr[2], address_arr[3], address_checksum], 1, function (reply) { // write start address + checksum
-            //                     if (self.verify_response(self.status.ACK, reply)) {
-            //                         var array_out = new Array(bytes_to_write + 2); // 2 byte overhead [N, ...., checksum]
-            //                         array_out[0] = bytes_to_write - 1; // number of bytes to be written (to write 128 bytes, N must be 127, to write 256 bytes, N must be 255)
-
-            //                         var checksum = array_out[0];
-            //                         for (var i = 0; i < bytes_to_write; i++) {
-            //                             array_out[i + 1] = self.hex.data[flashing_block].data[bytes_flashed]; // + 1 because of the first byte offset
-            //                             checksum ^= self.hex.data[flashing_block].data[bytes_flashed];
-
-            //                             bytes_flashed++;
-            //                         }
-            //                         array_out[array_out.length - 1] = checksum; // checksum (last byte in the array_out array)
-
-            //                         address += bytes_to_write;
-            //                         bytes_flashed_total += bytes_to_write;
-
-            //                         self.send(array_out, 1, function (reply) {
-            //                             if (self.verify_response(self.status.ACK, reply)) {
-            //                                 // flash another page
-            //                                 write();
-            //                             }
-            //                         });
-
-            //                         // update progress bar
-            //                         self.progress_bar_e.val(Math.round(bytes_flashed_total / (self.hex.bytes_total * 2) * 100));
-            //                     }
-            //                 });
-            //             }
-            //         });
-            //     } else {
-            //         // move to another block
-            //         if (flashing_block < blocks) {
-            //             flashing_block++;
-
-            //             address = self.hex.data[flashing_block].address;
-            //             bytes_flashed = 0;
-
-            //             write();
-            //         } else {
-            //             // all blocks flashed
-            //             console.log('Writing: done');
-
-            //             // proceed to next step
-            //             self.upload_procedure(6);
-            //         }
-            //     }
-            
-            //}
-
-            // start writing
-            //write();
-
-            // self.upload_procedure(6);
-            // break;
 
         case 6:
             // verify
@@ -823,7 +777,7 @@ PX4_protocol.prototype.upload_procedure = function (step) {
 
            // console.log('Writing data ...');
 
-            var verify_multi = function () {  //_data should be a block of no longer than PROG_MULTI_MAX
+            var verify_multi = async function () {  //_data should be a block of no longer than PROG_MULTI_MAX
 
                 // a prog_multi sends a variable amount of data, but defines how much its sending in advance, and expects INSYNC and OK at the end
                 //var multi_len = self.command.PROG_MULTI_MAX; // assume this, but it may be less.
@@ -857,110 +811,20 @@ PX4_protocol.prototype.upload_procedure = function (step) {
                     // }
 
                 });
+
+                await sleep(100);//ms wait a bit for a response before moving on,
             }
    
-            verify_multi();
-            
 
-            self.upload_procedure(7);
+            var DOIT2 = async function () {
+                await verify_multi();
 
-            break;
+                await sleep(1000);//ms 
+                
+                self.upload_procedure(7);
+            }
 
-            // var blocks = self.hex.data.length - 1,
-            //     reading_block = 0,
-            //     address = self.hex.data[reading_block].address,
-            //     bytes_verified = 0,
-            //     bytes_verified_total = 0; // used for progress bar
-
-            // // initialize arrays
-            // for (var i = 0; i <= blocks; i++) {
-            //     self.verify_hex.push([]);
-            // }
-
-            // var reading = function () {
-            //     if (bytes_verified < self.hex.data[reading_block].bytes) {
-            //         var bytes_to_read = ((bytes_verified + 256) <= self.hex.data[reading_block].bytes) ? 256 : (self.hex.data[reading_block].bytes - bytes_verified);
-
-            //         // console.log('PX4 - Reading from: 0x' + address.toString(16) + ', ' + bytes_to_read + ' bytes');
-
-            //         self.send([self.command.read_memory, 0xEE], 1, function (reply) { // 0x11 ^ 0xFF
-            //             if (self.verify_response(self.status.ACK, reply)) {
-            //                 var address_arr = [(address >> 24), (address >> 16), (address >> 8), address];
-            //                 var address_checksum = address_arr[0] ^ address_arr[1] ^ address_arr[2] ^ address_arr[3];
-
-            //                 self.send([address_arr[0], address_arr[1], address_arr[2], address_arr[3], address_checksum], 1, function (reply) { // read start address + checksum
-            //                     if (self.verify_response(self.status.ACK, reply)) {
-            //                         var bytes_to_read_n = bytes_to_read - 1;
-
-            //                         self.send([bytes_to_read_n, (~bytes_to_read_n) & 0xFF], 1, function (reply) { // bytes to be read + checksum XOR(complement of bytes_to_read_n)
-            //                             if (self.verify_response(self.status.ACK, reply)) {
-            //                                 self.retrieve(bytes_to_read, function (data) {
-            //                                     for (var i = 0; i < data.length; i++) {
-            //                                         self.verify_hex[reading_block].push(data[i]);
-            //                                     }
-
-            //                                     address += bytes_to_read;
-            //                                     bytes_verified += bytes_to_read;
-            //                                     bytes_verified_total += bytes_to_read;
-
-            //                                     // verify another page
-            //                                     reading();
-            //                                 });
-            //                             }
-            //                         });
-
-            //                         // update progress bar
-            //                         self.progress_bar_e.val(Math.round((self.hex.bytes_total + bytes_verified_total) / (self.hex.bytes_total * 2) * 100));
-            //                     }
-            //                 });
-            //             }
-            //         });
-            //     } else {
-            //         // move to another block
-            //         if (reading_block < blocks) {
-            //             reading_block++;
-
-            //             address = self.hex.data[reading_block].address;
-            //             bytes_verified = 0;
-
-            //             reading();
-            //         } else {
-            //             // all blocks read, verify
-
-            //             var verify = true;
-            //             for (var i = 0; i <= blocks; i++) {
-            //                 verify = self.verify_flash(self.hex.data[i].data, self.verify_hex[i]);
-
-            //                 if (!verify) break;
-            //             }
-
-            //             if (verify) {
-            //                 console.log('Programming: SUCCESSFUL');
-            //                 $('span.progressLabel').text('Programming: SUCCESSFUL');
-            //                 googleAnalytics.sendEvent('Flashing', 'Programming', 'success');
-
-            //                 // update progress bar
-            //                 self.progress_bar_e.addClass('valid');
-
-            //                 // proceed to next step
-            //                 self.upload_procedure(7);
-            //             } else {
-            //                 console.log('Programming: FAILED');
-            //                 $('span.progressLabel').text('Programming: FAILED');
-            //                 googleAnalytics.sendEvent('Flashing', 'Programming', 'fail');
-
-            //                 // update progress bar
-            //                 self.progress_bar_e.addClass('invalid');
-
-            //                 // disconnect
-            //                 self.upload_procedure(99);
-            //             }
-            //         }
-            //     }
-            // }
-
-            // // start reading
-            // reading();
+            DOIT2();
 
             break;
         case 7:

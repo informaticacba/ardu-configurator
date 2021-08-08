@@ -338,10 +338,7 @@ TABS.firmware_flasher.initialize = function (callback) {
                 var binblob = j.image; // this is still base64 encoded
                 j.image = '';// remove it from json b4 display as its huge
                 console.log(j)// thte remainder of the json
-
                 
-                //self.hex = atob(binblob); // remove base64 encoding; 
-
                 // at this point self.hex is a "string"
 
                 function _base64ToArrayBuffer(base64) {
@@ -351,11 +348,15 @@ TABS.firmware_flasher.initialize = function (callback) {
                     for (var i = 0; i < len; i++) {
                         bytes[i] = binary_string.charCodeAt(i);
                     }
-                    return bytes.buffer;
+                    //return bytes.buffer;
+                    return bytes;
                 }
 
-                self.hex = _base64ToArrayBuffer(binblob);
+                var binblob2 = _base64ToArrayBuffer(binblob); // remove base64 encoding;  still zlib compressed
 
+
+                var binblob3 = pako.inflate(binblob2);//zlib.decompress(q);
+                
                 // at this point self.hex is a real Uint8Array()
 
                 /*
@@ -375,8 +376,8 @@ TABS.firmware_flasher.initialize = function (callback) {
 
                 // for compat, shove a few things into parsed_hex  ( its the result format that hex_parser.js uses, but we don't use that parser here.
                 parsed_hex ={
-                    'bytes_total' : self.hex.length, 
-                    'data' : self.hex,
+                    'bytes_total' : binblob3.length, 
+                    'data' : binblob3,
                 };
 
                 // todo basic check:
