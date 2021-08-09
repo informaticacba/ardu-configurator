@@ -77,23 +77,14 @@ TABS.firmware_flasher.initialize = function (callback) {
                // var matchVersionFromTag = versionFromTagExpression.exec(release.tag_name);
                 var version = release['mav-firmware-version'];//matchVersionFromTag[1];
 
-                //release.assets.forEach(function(asset){
-                    //var result = release.url;
-                    // if ((!showDevReleases && release.prerelease) || !result) {
-                    //     return;
-                    // }
 
-                    //  if (release.format != 'hex') { // or .apj   
-                    //      return; // buzz todo. for now we use only firmwares that are _bl.hex files that can be flashed with dfu
-                    //  }
+                // tip: this file type is great for flashing with DFU: '_with_bl.hex'
+                // tip: this file type is great for flashing with DFU: '.apj'
 
-                    // buzz todo - this file type is great for flashing with DFU, but we aren't doing that here..
-                    // if (! release.url.endsWith('_with_bl.hex')) { 
-                    //    return; // buzz todo. for now we use only firmwares that are _bl.hex files that can be flashed with dfu
-                    //}
-                    if (! release.url.endsWith('.apj')) { 
-                        return; // buzz todo. for now we use only firmwares that are .apj files that can be flashed with bootloader
-                    }
+                if (  (release.url.endsWith('.apj')) || (release.url.endsWith('_with_bl.hex'))  ) { 
+                         // for now we use only firmwares that are .apj files that can be flashed with bootloader OR
+                         // _bl.hex files that can be flashed with dfu
+                   
 
                     // var date = new Date("2001-01-01"); // buzz hack, no date data in ardu json
                     // var formattedDate = "{0}-{1}-{2} {3}:{4}".format(
@@ -120,7 +111,7 @@ TABS.firmware_flasher.initialize = function (callback) {
                     };
                     //releases[descriptor['uid']].push(descriptor);
                     releases[release.platform].push(descriptor);
-                //});
+                }
             });
             var selectTargets = [];
             Object.keys(releases)
@@ -413,8 +404,16 @@ TABS.firmware_flasher.initialize = function (callback) {
                 console.log("getting firmware from url:",summary.url);
                 $.get(summary.url, function (data) {
                     enable_load_online_button();
-                    //process_hex(data, summary);
-                    process_apj(data, summary);
+
+                    if (  summary.url.endsWith('_with_bl.hex') ) { 
+                        console.log("PROCESS hex:",summary.url);
+                        process_hex(data, summary);
+                    }
+                    if (  summary.url.endsWith('.apj') ) { 
+                        console.log("PROCESS apj:",summary.url);
+                        process_apj(data, summary);
+                    }
+
                 }).fail(failed_to_load);
             } else {
                 $('span.progressLabel').text(chrome.i18n.getMessage('firmwareFlasherFailedToLoadOnlineFirmware'));
@@ -610,7 +609,7 @@ TABS.firmware_flasher.initialize = function (callback) {
             if (result.flash_on_connect) {
                 $('input.flash_on_connect').prop('checked', true);
             } else {
-                $('input.flash_on_connect').prop('checked', true); //false buzz hack to force it on  "flash_on_connect" works to get us into BL, "Flash firmware" button doesn't.
+                $('input.flash_on_connect').prop('checked', false); //false buzz hack to force it on  "flash_on_connect" works to get us into BL, "Flash firmware" button doesn't.
             }
 
             $('input.flash_on_connect').change(function () {
