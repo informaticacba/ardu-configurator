@@ -28,8 +28,8 @@ var PX4_protocol = function () {
 
 
     this.command = {
-        INSYNC:    0x12, //decimal 18
-        EOC:       0x20,  //        32 
+        INSYNC:    0x12,          //decimal 18
+        EOC:       0x20,              //    32 
         OK:                     0x10, //dec 16
         FAILED:                 0x11, //    17
         INVALID:                0x13, //    19
@@ -49,7 +49,7 @@ var PX4_protocol = function () {
         GET_CHIP_DES:           0x2e,
         MAX_DES_LENGTH:           20,
 
-        REBOOT:                 0x30,
+        REBOOT:                 0x30, // dec 48
         SET_BAUD:               0x33,
         INFO_BL_REV:            0x01,
         BL_REV_MIN:                 2,
@@ -703,7 +703,9 @@ PX4_protocol.prototype.upload_procedure = function (step) {
         // __program_multi  ?
         case 49:
 
-            console.log('Writing data ...');
+            var message = 'Writing data' ;
+            console.log(message);
+            $('span.progressLabel').text(message + ' ...');
 
             var program_multi = async function (_data) {  //_data should be a block of no longer than PROG_MULTI_MAX
 
@@ -755,6 +757,10 @@ PX4_protocol.prototype.upload_procedure = function (step) {
                     temporary = self.hex.data.slice(i, i + chunk);
                     // do whatever
                     await program_multi(temporary);
+                    // let gui
+                    var message = 'Writing data '+i ;
+                    console.log(message);
+                    $('span.progressLabel').text(message + ' ...');
                 }
                 
             }
@@ -832,22 +838,14 @@ PX4_protocol.prototype.upload_procedure = function (step) {
             // memory address = 4 bytes, 1st high byte, 4th low byte, 5th byte = checksum XOR(byte 1, byte 2, byte 3, byte 4)
             console.log('Sending reBoOT command.');
 
-            self.send([self.command.REBOOT, self.command.EOC], 0, function (reply) { // 0x21 ^ 0xFF
-                // if (self.verify_response(self.status.ACK, reply)) {
-                //     var gt_address = 0x8000000,
-                //         address = [(gt_address >> 24), (gt_address >> 16), (gt_address >> 8), gt_address],
-                //         address_checksum = address[0] ^ address[1] ^ address[2] ^ address[3];
-
-                //     self.send([address[0], address[1], address[2], address[3], address_checksum], 1, function (reply) {
-                //         if (self.verify_response(self.status.ACK, reply)) {
-                //             // disconnect
-                //             self.upload_procedure(99);
-                //         }
-                //     });
-                // }
-                console.log("sent ok");
-
+            self.send([self.command.REBOOT, self.command.EOC], 0, function (reply) { 
+                //console.log("sent ok"); never trigered as ardupilot bootloader doesn't "ack" the reboot
             });
+
+            // let gui know
+            var message = 'Success, probably.' ;
+            console.log(message);
+            $('span.progressLabel').text(message);
 
             self.upload_procedure(99);
             break;
@@ -868,6 +866,9 @@ PX4_protocol.prototype.upload_procedure = function (step) {
                 var timeSpent = new Date().getTime() - self.upload_time_start;
 
                 console.log('Script finished after: ' + (timeSpent / 1000) + ' seconds');
+
+                // this [hopefully] turns OFF flash-on-connect after an attempt to prevent a re-flash loop
+                $('.flash_on_connect').click();
 
                 if (self.callback) self.callback();
             });

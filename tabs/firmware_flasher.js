@@ -309,6 +309,10 @@ TABS.firmware_flasher.initialize = function (callback) {
 
                         $('div.release_info').slideDown();
 
+                        // once u load a .hex, you probably don't need to see warning or notes any more.
+                        $('div.gui_warning').hide();
+                        $('div.gui_note').hide();
+
                     } else {
                         $('span.progressLabel').text(chrome.i18n.getMessage('firmwareFlasherHexCorrupted'));
                     }
@@ -376,7 +380,8 @@ TABS.firmware_flasher.initialize = function (callback) {
 
                 $('span.progressLabel').html('<a class="save_firmware" href="#" title="Save Firmware">Loaded Online Firmware: (' + parsed_hex.bytes_total + ' bytes)</a>');
 
-                $('a.flash_firmware').removeClass('disabled');
+                $('a.flash_firmware').removeClass('disabled'); //for now we DONT want .apj to use this button
+                $('a.flash_firmware').hide(); // we need for .js to be able to trigger it, but don't want human to click it.
 
                 $('div.release_info .target').text(summary.target);
                 $('div.release_info .status').html(chrome.i18n.getMessage('firmwareFlasherReleaseStatusReleaseCandidate')).show();
@@ -395,6 +400,10 @@ TABS.firmware_flasher.initialize = function (callback) {
                 $('div.release_info').slideDown();
 
                 console.log(" parsed APJ = true =>"+ parsed_hex.bytes_total+' bytes')
+
+                // once u load a .apj, you probably don't need to see warning or notes any more.
+                $('div.gui_warning').hide();
+                $('div.gui_note').hide();
 
             }
 
@@ -420,32 +429,32 @@ TABS.firmware_flasher.initialize = function (callback) {
             }
         });
 
-        $('a.flash_firmware2').click(function () { //Buzz2
+        // $('a.flash_firmware2').click(function () { //Buzz2
 
 
-            //var port = "/dev/ttyACM0";
+        //     //var port = "/dev/ttyACM0";
 
-            var port = String($('div#port-picker #port').val())
+        //     var port = String($('div#port-picker #port').val())
 
-            //(port, baud, hex,
+        //     //(port, baud, hex,
 
 
-            //------------------
+        //     //------------------
 
-            var up = new uploader(port,
-                115200,//args.baud_bootloader,
-                57600,//baud_flightstack,
-                115200,//args.baud_bootloader_flash,
-                1,//args.target_system,
-                1,//args.target_component,
-                255,//args.source_system,
-                0,//args.source_component
-                );
+        //     var up = new uploader(port,
+        //         115200,//args.baud_bootloader,
+        //         57600,//baud_flightstack,
+        //         115200,//args.baud_bootloader_flash,
+        //         1,//args.target_system,
+        //         1,//args.target_component,
+        //         255,//args.source_system,
+        //         0,//args.source_component
+        //         );
     
-                //-----------
+        //         //-----------
 
         
-        });
+        // });
 
         
 
@@ -556,7 +565,7 @@ TABS.firmware_flasher.initialize = function (callback) {
                 $('.flash_on_connect_wrapper').show();
             } else {
                 $('input.updating').prop('checked', false);
-                $('.flash_on_connect_wrapper').show();// buzz hack
+                $('.flash_on_connect_wrapper').show();// buzz hack to furce this feature ON for now.
 
             }
 
@@ -609,7 +618,7 @@ TABS.firmware_flasher.initialize = function (callback) {
             if (result.flash_on_connect) {
                 $('input.flash_on_connect').prop('checked', true);
             } else {
-                $('input.flash_on_connect').prop('checked', false); //false buzz hack to force it on  "flash_on_connect" works to get us into BL, "Flash firmware" button doesn't.
+                $('input.flash_on_connect').prop('checked', true); // buzz hack to force it on  "flash_on_connect" works to get us into BL, "Flash firmware" button doesn't.
             }
 
             $('input.flash_on_connect').change(function () {
