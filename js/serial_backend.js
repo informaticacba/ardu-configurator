@@ -126,6 +126,19 @@ $(document).ready(function () {
             if (selected_port === 'DFU') {
                 GUI.log(chrome.i18n.getMessage('dfu_connect_message'));
             }
+            else if (selected_port === 'manual') {
+                if (!clicks) {
+                    console.log('Connecting to: ' + selected_port);
+                    GUI.connecting_to = selected_port;
+
+                    // lock port select & baud while we are connecting / connected
+                    $('#port, #baud, #delay').prop('disabled', true);
+                    $('div.connect_controls a.connect_state').text(chrome.i18n.getMessage('connecting'));
+                    selected_port = $('#port-override')[0].value ;
+                    serial.connect(selected_port, {bitrate: selected_baud}, onOpen);
+                }
+            
+            }
             else if (selected_port != '0') {
                 if (!clicks) {
                     console.log('Connecting to: ' + selected_port);
@@ -134,7 +147,6 @@ $(document).ready(function () {
                     // lock port select & baud while we are connecting / connected
                     $('#port, #baud, #delay').prop('disabled', true);
                     $('div.connect_controls a.connect_state').text(chrome.i18n.getMessage('connecting'));
-
                     serial.connect(selected_port, {bitrate: selected_baud}, onOpen);
                 } else {
                     var wasConnected = CONFIGURATOR.connectionValid;
@@ -221,6 +233,23 @@ function onInvalidFirmwareVersion()
     $('#tabs .tab_cli a').click();
 }
 
+function waitSendMavlinkMessages(timeout){
+    helper.timeout.add('waitForValidConnection', function () {
+    if (!FC.curr_mav_state['SYS_STATUS']) {
+        if (mspHelper.INIT_CONNECTION_ATTEMPTS < 6){
+                    waitSendMavlinkMessages(1000);
+                    mspHelper.INIT_CONNECTION_ATTEMPTS++;
+                }
+            } else {
+                ParamsObj.getAll(); // todo delay this? - this immediately starts param fetch
+
+                update_dataflash_global();
+        
+                autopilot_version_request(); 
+            }
+    }, timeout);   
+}
+
 function onOpen(openInfo) {
     if (openInfo) {
         // update connected_to
@@ -264,14 +293,17 @@ function onOpen(openInfo) {
         // the following stuff happens once, when the serial port is iopened.  for now, we would/could actually 
         // move this fron onOpen() to read: function (readInfo) in mavsp.js ...
         // BUT ...  without it HERE  the mav serial stream may not autopromote to mav .V2
-        send_heartbeat_handler(); // shrow a heartbeat first, blindly
-        set_stream_rates(4); //buzz?
+        if(GUI.connected_to == "manual"){
+            waitSendMavlinkMessages(1000);
+        }else{
+            send_heartbeat_handler(); // shrow a heartbeat first, blindly
+            set_stream_rates(4); //buzz?
+            ParamsObj.getAll(); // todo delay this? - this immediately starts param fetch
 
-        ParamsObj.getAll(); // todo delay this? - this immediately starts param fetch
-
-        update_dataflash_global();
-
-        autopilot_version_request(); 
+            update_dataflash_global();
+    
+            autopilot_version_request(); 
+        }
         // buzz todo populdate these before posting
         //googleAnalytics.sendEvent('Firmware', 'Variant', CONFIG.flightControllerIdentifier + ',' + CONFIG.flightControllerVersion);
 

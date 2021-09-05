@@ -45,6 +45,10 @@
     "sockets": {
         "tcp": {
             "connect": "*:*"
+        },
+        "udp": {
+            "bind": "*:*",
+            "send": "*:*"
         }
     },
 
